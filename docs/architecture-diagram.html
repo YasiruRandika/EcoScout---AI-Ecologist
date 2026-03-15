@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoScout - System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0f0d;
+  --surface: #121a16;
+  --surface2: #1a2820;
+  --border: #2a3d33;
+  --accent: #4ade80;
+  --accent2: #22d3ee;
+  --accent3: #a78bfa;
+  --accent4: #f472b6;
+  --accent5: #fb923c;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Source Sans 3', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+  position: relative;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+}
+
+h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.8rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+h1 span {
+  font-size: 1.3rem;
+  display: block;
+  margin-top: 4px;
+  background: linear-gradient(135deg, var(--text-muted), var(--text-dim));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: 'Source Sans 3', sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+}
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 300;
+  margin-top: 4px;
+}
+
+/* ── Layers ── */
+.layer {
+  position: relative;
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  transition: border-color 0.3s;
+}
+.layer:hover { border-color: var(--accent); z-index: 2; }
+
+.layer-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.layer-label .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ── Nodes ── */
+.nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+.node {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  min-width: 170px;
+  max-width: 220px;
+  text-align: center;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+}
+.node::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.node:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.node-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-bottom: 6px;
+}
+.node-detail {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.tech-badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+/* color variants */
+.user-layer .dot { background: var(--accent); }
+.user-layer .node::before { background: var(--accent); }
+.user-layer .tech-badge { background: rgba(74,222,128,0.08); color: var(--accent); border: 1px solid rgba(74,222,128,0.15); }
+
+.server-layer .dot { background: var(--accent2); }
+.server-layer .node::before { background: var(--accent2); }
+.server-layer .tech-badge { background: rgba(34,211,238,0.08); color: var(--accent2); border: 1px solid rgba(34,211,238,0.15); }
+
+.gemini-layer .dot { background: var(--accent3); }
+.gemini-layer .node::before { background: var(--accent3); }
+.gemini-layer .tech-badge { background: rgba(167,139,250,0.08); color: var(--accent3); border: 1px solid rgba(167,139,250,0.15); }
+
+.cloud-layer .dot { background: var(--accent5); }
+.cloud-layer .node::before { background: var(--accent5); }
+.cloud-layer .tech-badge { background: rgba(251,146,60,0.08); color: var(--accent5); border: 1px solid rgba(251,146,60,0.15); }
+
+/* ── Connection indicators ── */
+.conn {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+.conn-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.conn-line {
+  width: 2px;
+  height: 16px;
+}
+.conn-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  background: var(--bg);
+  padding: 3px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.conn-head {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+
+.flow-badges {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.flow-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+/* ── Tools grid ── */
+.tools-section {
+  margin-top: 18px;
+}
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.tool-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent2);
+  text-align: center;
+  transition: all 0.2s;
+}
+.tool-chip:hover {
+  border-color: var(--accent2);
+  background: rgba(34,211,238,0.04);
+}
+.tool-chip .fn {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  display: block;
+  margin-top: 3px;
+}
+
+.grounding-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 8px 0 12px;
+  padding: 0 4px;
+}
+.grounding-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.grounding-chip {
+  color: var(--accent4);
+}
+.grounding-chip strong {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 40px;
+  padding: 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Stagger animation ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.layer, .conn, .flow-badges, .legend {
+  animation: fadeUp 0.5s ease-out both;
+}
+.layer:nth-child(1) { animation-delay: 0.1s; }
+.layer:nth-child(3) { animation-delay: 0.25s; }
+.layer:nth-child(5) { animation-delay: 0.4s; }
+.layer:nth-child(7) { animation-delay: 0.55s; }
+
+@media (max-width: 700px) {
+  h1 { font-size: 2rem; }
+  .node { min-width: 140px; }
+  .tools-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>EcoScout<span>Live Environmental Intelligence Companion</span></h1>
+    <p class="subtitle">Gemini Live Agent Challenge 2026 &mdash; System Architecture</p>
+  </div>
+
+  <!-- Layer 1: User Device -->
+  <div class="layer user-layer">
+    <div class="layer-label"><span class="dot"></span>USER DEVICE &mdash; Mobile Browser PWA</div>
+    <div class="nodes">
+      <div class="node">
+        <div class="node-name">Camera</div>
+        <div class="node-detail">JPEG frames @ 1 fps<br>640&times;480 resolution</div>
+        <span class="tech-badge">getUserMedia API</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Microphone</div>
+        <div class="node-detail">PCM 16 kHz mono<br>Echo Cancellation enabled<br>Mute / Unmute toggle</div>
+        <span class="tech-badge">AudioWorklet</span>
+      </div>
+      <div class="node">
+        <div class="node-name">GPS</div>
+        <div class="node-detail">Real-time coordinates<br>Observation geo-tagging</div>
+        <span class="tech-badge">Geolocation API</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Vanilla JS PWA</div>
+        <div class="node-detail">Camera View &bull; Gallery<br>Video Player &bull; Journal</div>
+        <span class="tech-badge">Vanilla JS + CSS</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Live Survey Dashboard</div>
+        <div class="node-detail">D3.js Food Web &bull; Accumulation Curve<br>Shannon H' &bull; Conservation Alerts</div>
+        <span class="tech-badge">ecology-viz.js</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection 1 -->
+  <div class="conn">
+    <div class="conn-inner">
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent),var(--accent2))"></div>
+      <div class="conn-label">WebSocket &mdash; single persistent connection</div>
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent),var(--accent2))"></div>
+      <div class="conn-head" style="border-top:8px solid var(--accent2)"></div>
+    </div>
+  </div>
+
+  <div class="flow-badges">
+    <span class="flow-badge">&uarr; Binary: PCM audio chunks (~3200 B / 100 ms)</span>
+    <span class="flow-badge">&uarr; JSON: {type: image | text | gps, data: &hellip;}</span>
+    <span class="flow-badge">&darr; Events: audio parts | text | tool results | media URLs</span>
+    <span class="flow-badge">&darr; Ecology: species | metrics | food web | accumulation</span>
+  </div>
+
+  <!-- Layer 2: Cloud Run -->
+  <div class="layer server-layer">
+    <div class="layer-label"><span class="dot"></span>GOOGLE CLOUD RUN &mdash; FastAPI + ADK Runtime</div>
+    <div class="nodes">
+      <div class="node">
+        <div class="node-name">WebSocket Endpoint</div>
+        <div class="node-detail">/ws/{user_id}/{session_id}<br>Session affinity enabled</div>
+        <span class="tech-badge">FastAPI + Uvicorn</span>
+      </div>
+      <div class="node">
+        <div class="node-name">ADK Runner</div>
+        <div class="node-detail">run_live() bidi stream<br>LiveRequestQueue</div>
+        <span class="tech-badge">google-adk &ge; 1.18</span>
+      </div>
+      <div class="node">
+        <div class="node-name">EcoScout Agent</div>
+        <div class="node-detail">Naturalist persona<br>Proactive &bull; Affective</div>
+        <span class="tech-badge">LlmAgent</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Video Notification Task</div>
+        <div class="node-detail">Poll _video_ready_events<br>Send video_ready / started</div>
+        <span class="tech-badge">asyncio task</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Ecology Notification Task</div>
+        <div class="node-detail">Drain _ecology_events queue<br>Send ecology_update via WS</div>
+        <span class="tech-badge">asyncio task</span>
+      </div>
+    </div>
+
+    <!-- Tools sub-section -->
+    <div class="tools-section">
+      <div class="layer-label"><span class="dot" style="background:var(--accent2)"></span>AGENT TOOLS (FunctionTool)</div>
+      <div class="tools-grid">
+        <div class="tool-chip">google_search<span class="fn">Species grounding &bull; facts</span></div>
+        <div class="tool-chip">identify_specimen()<span class="fn">Vision + Search verify</span></div>
+        <div class="tool-chip">record_observation()<span class="fn">Firestore + _ecology_events</span></div>
+        <div class="tool-chip">generate_field_entry()<span class="fn">Interleaved text + image</span></div>
+        <div class="tool-chip">generate_nature_video()<span class="fn">Veo 3.1 async submit</span></div>
+        <div class="tool-chip">extend_video()<span class="fn">Veo 3.1 +7 s extension</span></div>
+        <div class="tool-chip">create_expedition_summary()<span class="fn">Compile full journal</span></div>
+        <div class="tool-chip">calculate_biodiversity_metrics()<span class="fn">Shannon H' &bull; Simpson 1-D</span></div>
+        <div class="tool-chip">get_area_species_checklist()<span class="fn">iNaturalist area query</span></div>
+        <div class="tool-chip">get_weather_context()<span class="fn">Open-Meteo ecological data</span></div>
+      </div>
+    </div>
+
+    <!-- Grounding & external data sources -->
+    <div class="tools-section">
+      <div class="layer-label"><span class="dot" style="background:var(--accent4)"></span>GROUNDING &amp; EXTERNAL DATA SOURCES</div>
+      <p class="grounding-desc">Agent responses and tool outputs are grounded using the following sources:</p>
+      <div class="tools-grid grounding-grid">
+        <div class="tool-chip grounding-chip">
+          <strong>Google Search</strong><span class="fn">ADK built-in grounding &bull; species verification &bull; citations</span>
+        </div>
+        <div class="tool-chip grounding-chip">
+          <strong>iNaturalist</strong><span class="fn">100M+ observations &bull; taxonomy &bull; conservation status &bull; area checklists</span>
+        </div>
+        <div class="tool-chip grounding-chip">
+          <strong>Open-Meteo</strong><span class="fn">Weather &bull; temp &bull; humidity &bull; wind (ecological context)</span>
+        </div>
+        <div class="tool-chip grounding-chip">
+          <strong>Geocoding</strong><span class="fn">Google Maps or Nominatim (OpenStreetMap) for location names</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection 2 -->
+  <div class="conn">
+    <div class="conn-inner">
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent2),var(--accent3))"></div>
+      <div class="conn-label">API Calls &mdash; bidi streaming &bull; REST &bull; async long-running ops</div>
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent2),var(--accent3))"></div>
+      <div class="conn-head" style="border-top:8px solid var(--accent3)"></div>
+    </div>
+  </div>
+
+  <!-- Layer 3: Gemini APIs -->
+  <div class="layer gemini-layer">
+    <div class="layer-label"><span class="dot"></span>GEMINI APIs &mdash; AI Models</div>
+    <div class="nodes">
+      <div class="node">
+        <div class="node-name">Gemini Live API</div>
+        <div class="node-detail">Bidi WebSocket streaming<br>Audio + Video + Tool calls</div>
+        <span class="tech-badge">gemini-live-2.5-flash-native-audio</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Gemini 3 Pro Image</div>
+        <div class="node-detail">Interleaved text + image<br>Field guide illustrations</div>
+        <span class="tech-badge">gemini-3-pro-image-preview</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Veo 3.1</div>
+        <div class="node-detail">Video generation + extension<br>Nature process documentaries</div>
+        <span class="tech-badge">veo-3.1-generate-preview</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Google Search</div>
+        <div class="node-detail">Grounding + citations<br>Species verification</div>
+        <span class="tech-badge">ADK built-in tool</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection 3 -->
+  <div class="conn">
+    <div class="conn-inner">
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent3),var(--accent5))"></div>
+      <div class="conn-label">Persist &mdash; observations &bull; media assets &bull; metadata</div>
+      <div class="conn-line" style="background:linear-gradient(180deg,var(--accent3),var(--accent5))"></div>
+      <div class="conn-head" style="border-top:8px solid var(--accent5)"></div>
+    </div>
+  </div>
+
+  <!-- Layer 4: Cloud Services -->
+  <div class="layer cloud-layer">
+    <div class="layer-label"><span class="dot"></span>GOOGLE CLOUD SERVICES &mdash; Storage + State</div>
+    <div class="nodes">
+      <div class="node">
+        <div class="node-name">Cloud Firestore</div>
+        <div class="node-detail">Sessions &amp; observations<br>Video metadata &amp; status<br>GPS tracks &amp; summaries</div>
+        <span class="tech-badge">AsyncClient</span>
+      </div>
+      <div class="node">
+        <div class="node-name">Cloud Storage</div>
+        <div class="node-detail">Field guide images (PNG)<br>Generated videos (MP4)<br>Expedition journals</div>
+        <span class="tech-badge">Signed URLs</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>User Device / Input</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>Cloud Run / Backend</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>Gemini AI Models</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent4)"></div>Live Dashboard</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent5)"></div>Cloud Storage / State</div>
+  </div>
+
+</div>
+</body>
+</html>

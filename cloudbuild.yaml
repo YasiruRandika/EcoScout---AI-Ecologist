@@ -1,0 +1,32 @@
+# Substitutions: _BUCKET_NAME (default ecoscout-media). Set via deploy.sh.
+substitutions:
+  _BUCKET_NAME: 'ecoscout-media'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ecoscout', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ecoscout']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'ecoscout'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/ecoscout'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--session-affinity'
+      - '--timeout'
+      - '3600'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_LOCATION=us-central1,GCS_BUCKET_NAME=${_BUCKET_NAME}'
+
+images:
+  - 'gcr.io/$PROJECT_ID/ecoscout'

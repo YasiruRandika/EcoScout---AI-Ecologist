@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EcoScout - Live Environmental Intelligence</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
+    <link rel="apple-touch-icon" href="/static/icons/favicon.svg">
+    <meta name="theme-color" content="#0a0f0d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="/static/js/app.js" type="module"></script>
+  </head>
+
+  <body>
+    <!-- Full-screen camera background -->
+    <div class="camera-hero" id="cameraHero">
+      <video id="cameraFeed" autoplay playsinline muted></video>
+      <canvas id="captureCanvas"></canvas>
+      <div class="camera-placeholder" id="cameraPlaceholder">
+        <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/>
+          <path d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z"/>
+        </svg>
+        <span class="placeholder-text">Tap camera to start exploring</span>
+      </div>
+    </div>
+
+    <!-- Top status bar -->
+    <div class="status-bar" id="statusBar">
+      <div class="status-left">
+        <span class="logo-text">EcoScout</span>
+        <span class="status-dot" id="statusDot"></span>
+        <button type="button" id="newSurveyBtn" class="new-survey-btn" title="Start new survey">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span>New Survey</span>
+        </button>
+      </div>
+      <div class="status-right">
+        <span class="gps-pill" id="gpsBadge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+            <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
+          </svg>
+          <span id="gpsText">Locating...</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Floating voice FAB with audio visualization -->
+    <div class="voice-fab" id="voiceFab">
+      <canvas id="audioViz" width="96" height="96"></canvas>
+      <button id="startAudioButton" title="Enable voice">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Ecology Dashboard (slides in from right on camera hero) -->
+    <div class="ecology-panel" id="ecologyPanel">
+      <button type="button" class="eco-panel-toggle" id="ecoPanelToggle" title="Toggle survey dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 6-6"/></svg>
+      </button>
+      <div class="eco-panel-content" id="ecoPanelContent">
+        <div class="eco-section">
+          <div class="eco-section-title">Survey Dashboard</div>
+          <div id="surveyDashboard" class="survey-dashboard">
+            <div class="dash-row">
+              <div class="dash-stat"><span class="dash-value">0</span><span class="dash-label">Species</span></div>
+              <div class="dash-stat"><span class="dash-value">0</span><span class="dash-label">Observations</span></div>
+              <div class="dash-stat"><span class="dash-value">0.00</span><span class="dash-label">Shannon H'</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="eco-section">
+          <div class="eco-section-title">Ecological Network</div>
+          <div id="foodWebContainer" class="food-web-container">
+            <div class="viz-empty">Species will appear here as you explore</div>
+          </div>
+        </div>
+        <div class="eco-section">
+          <div class="eco-section-title">Species Accumulation</div>
+          <canvas id="accumulationCanvas" width="280" height="120" class="accumulation-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom conversation sheet -->
+    <div class="convo-sheet" id="convoSheet">
+      <div class="sheet-handle"><span></span></div>
+      <div class="messages" id="messages"></div>
+      <div class="input-row">
+        <form id="messageForm">
+          <input
+            type="text"
+            id="message"
+            name="message"
+            placeholder="Ask about what you see..."
+            autocomplete="off"
+          />
+          <button type="submit" id="sendButton" disabled title="Send">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"/>
+            </svg>
+          </button>
+        </form>
+        <button type="button" id="cameraToggle" title="Toggle camera">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/>
+            <path d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+# Reduce upload size for gcloud builds submit / run deploy --source
+.git
+.gitignore
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.coverage
+htmlcov
+.env
+*.md
+!README.md
+tests/
+docs/
+*.plan.md
