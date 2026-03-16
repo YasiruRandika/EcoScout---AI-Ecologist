@@ -27,6 +27,7 @@ _storage_client = None
 BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "ecoscout-media-ecoscout-vertexai-2026")
 GCP_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 LOCAL_MEDIA_DIR = Path(__file__).resolve().parent.parent / "static" / "media" / "videos"
+LOCAL_IMAGES_DIR = Path(__file__).resolve().parent.parent / "static" / "media" / "images"
 
 
 def _get_genai_client():
@@ -62,15 +63,19 @@ def _get_storage_client():
 _video_ready_events: dict[str, dict] = {}
 _video_started_events: dict[str, dict] = {}
 _video_metadata: dict[str, dict] = {}
+_field_entry_events: dict[str, dict] = {}
 
 _ecology_events: list[dict] = []
+_observation_store: list[dict] = []
 
 
 def clear_session_events():
     """Reset all in-memory event queues for a fresh survey session."""
     _video_ready_events.clear()
     _video_started_events.clear()
+    _field_entry_events.clear()
     _ecology_events.clear()
+    _observation_store.clear()
 
 
 # ── Tool: identify_specimen ─────────────────────────────────────────────────
@@ -97,14 +102,15 @@ async def identify_specimen(
               ecological_role, safety_warnings, confidence_level, and notes.
     """
     logger.info(f"[TOOL CALLED] identify_specimen: {description[:80]}")
+
     return {
         "status": "identified",
         "description": description,
         "common_features": common_features,
         "habitat_context": habitat_context,
         "season": season,
-        "note": "Identification structured. Agent should populate species details "
-                "from google_search grounding results and relay to user.",
+        "note": "Identification structured. You MUST now call record_observation "
+                "with the species details to formally record it and update the dashboard.",
     }
 
 
@@ -113,9 +119,9 @@ async def identify_specimen(
 async def record_observation(
     species_name: str,
     common_name: str,
-    description: str,
-    ecological_notes: str,
-    confidence_level: str,
+    description: str = "",
+    ecological_notes: str = "",
+    confidence_level: str = "medium",
     safety_warnings: str = "",
     gps_lat: float = 0.0,
     gps_lon: float = 0.0,
@@ -124,18 +130,17 @@ async def record_observation(
     taxonomic_group: str = "",
     conservation_status: str = "Not Evaluated",
 ) -> dict:
-    """Record a nature observation to the expedition journal in Firestore.
+    """Record a species observation to the survey dashboard and expedition journal.
 
-    Call this after identifying a specimen to persist the finding with
-    GPS coordinates and ecological context. This also updates the live
-    survey dashboard in the frontend.
+    Call this IMMEDIATELY after identifying ANY species. Only species_name and
+    common_name are required — all other fields are optional.
 
     Args:
         species_name: Scientific name (e.g. "Amanita muscaria").
         common_name: Common name (e.g. "Fly Agaric").
-        description: Visual description of the specimen.
-        ecological_notes: Ecological context and relationships observed.
-        confidence_level: Identification confidence ("high", "medium", "low").
+        description: Visual or audio description of the specimen. Optional.
+        ecological_notes: Ecological context and relationships observed. Optional.
+        confidence_level: Identification confidence ("high", "medium", "low"). Defaults to "medium".
         safety_warnings: Any toxicity or danger warnings. Empty if safe.
         gps_lat: GPS latitude of the observation location.
         gps_lon: GPS longitude of the observation location.
@@ -176,6 +181,32 @@ async def record_observation(
         except Exception as e:
             logger.warning(f"Firestore write failed (non-critical): {e}")
 
+    _observation_store.append({
+        "species_name": species_name,
+        "common_name": common_name,
+        "description": description,
+        "ecological_notes": ecological_notes,
+        "confidence_level": confidence_level,
+        "trophic_level": trophic_level,
+        "taxonomic_group": taxonomic_group,
+        "conservation_status": conservation_status,
+        "timestamp": timestamp,
+    })
+
+    species_counts: dict[str, int] = {}
+    for obs in _observation_store:
+        sp = obs.get("species_name", "unknown")
+        species_counts[sp] = species_counts.get(sp, 0) + 1
+    total_n = sum(species_counts.values())
+    s = len(species_counts)
+    h_prime = -sum(
+        (c / total_n) * math.log(c / total_n)
+        for c in species_counts.values() if c > 0
+    )
+    simpson_d = sum(c * (c - 1) for c in species_counts.values())
+    simpson_1d = 1 - (simpson_d / (total_n * (total_n - 1))) if total_n > 1 else 0.0
+    evenness = h_prime / math.log(s) if s > 1 else 1.0
+
     _ecology_events.append({
         "species": {
             "name": species_name,
@@ -183,6 +214,12 @@ async def record_observation(
             "trophicLevel": trophic_level,
             "group": taxonomic_group,
             "conservationStatus": conservation_status,
+        },
+        "metrics": {
+            "shannon": round(h_prime, 3),
+            "simpson": round(simpson_1d, 3),
+            "richness": s,
+            "evenness": round(evenness, 3),
         },
     })
 
@@ -235,8 +272,9 @@ async def generate_field_entry(
 
     try:
         client = _get_genai_client()
-        response = client.models.generate_content(
-            model=os.getenv("IMAGE_MODEL", "gemini-3-pro-image-preview"),
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=os.getenv("IMAGE_MODEL", "gemini-2.5-flash-image"),
             contents=prompt,
             config=GenerateContentConfig(
                 response_modalities=[Modality.TEXT, Modality.IMAGE],
@@ -248,24 +286,46 @@ async def generate_field_entry(
 
     text_content = ""
     image_url = ""
+    image_bytes = None
 
-    for part in response.candidates[0].content.parts:
-        if part.text:
-            text_content += part.text
-        elif part.inline_data:
-            image_bytes = part.inline_data.data
-            blob_name = f"field-guide/{session_id}/{entry_id}.png"
+    try:
+        candidates = getattr(response, "candidates", None)
+        if not candidates:
+            logger.warning("Image generation returned no candidates (may be safety-blocked)")
+            return {"status": "error", "error": "No image generated — content may have been blocked by safety filters."}
+        parts = candidates[0].content.parts if candidates[0].content else []
+        for part in parts:
+            if part.text:
+                text_content += part.text
+            elif part.inline_data:
+                image_bytes = part.inline_data.data
+    except Exception as e:
+        logger.error(f"Failed to parse image generation response: {e}")
+        return {"status": "error", "error": f"Response parsing failed: {e}"}
+
+    if image_bytes:
+        blob_name = f"field-guide/{session_id}/{entry_id}.png"
+        try:
+            storage_client = _get_storage_client()
+            bucket = storage_client.bucket(BUCKET_NAME)
+            blob = bucket.blob(blob_name)
+            blob.upload_from_string(image_bytes, content_type="image/png")
+            image_url = blob.generate_signed_url(
+                expiration=timedelta(hours=24), method="GET"
+            )
+            logger.info(f"Field guide image uploaded to GCS: {blob_name}")
+        except Exception as e:
+            logger.warning(f"GCS signed URL failed, falling back to local: {e}")
+
+        if not image_url:
             try:
-                storage = _get_storage_client()
-                bucket = storage.bucket(BUCKET_NAME)
-                blob = bucket.blob(blob_name)
-                blob.upload_from_string(image_bytes, content_type="image/png")
-                image_url = blob.generate_signed_url(
-                    expiration=timedelta(hours=24), method="GET"
-                )
-                logger.info(f"Field guide image uploaded: {blob_name}")
+                LOCAL_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+                local_path = LOCAL_IMAGES_DIR / f"{entry_id}.png"
+                local_path.write_bytes(image_bytes)
+                image_url = f"/static/media/images/{entry_id}.png"
+                logger.info(f"Field guide image saved locally: {local_path}")
             except Exception as e:
-                logger.warning(f"GCS upload failed (non-critical): {e}")
+                logger.error(f"Local image save also failed: {e}")
 
     db = _get_firestore_db()
     if db:
@@ -281,6 +341,14 @@ async def generate_field_entry(
                 })
         except Exception as e:
             logger.warning(f"Firestore write failed (non-critical): {e}")
+
+    _field_entry_events[entry_id] = {
+        "entry_id": entry_id,
+        "species_name": species_name,
+        "common_name": common_name,
+        "text_content": text_content[:500],
+        "image_url": image_url,
+    }
 
     return {
         "status": "created",
@@ -1175,6 +1243,9 @@ async def calculate_biodiversity_metrics(session_id: str = "default") -> dict:
             return {"status": "error", "error": str(e)}
 
     if not observations:
+        observations = list(_observation_store)
+
+    if not observations:
         return {
             "status": "ok",
             "species_richness": 0,
@@ -1185,7 +1256,6 @@ async def calculate_biodiversity_metrics(session_id: str = "default") -> dict:
         }
 
     species_counts: dict[str, int] = {}
-    taxonomic_groups: dict[str, set] = {}
     for obs in observations:
         sp = obs.get("species_name", "unknown")
         species_counts[sp] = species_counts.get(sp, 0) + 1
@@ -1230,6 +1300,15 @@ async def calculate_biodiversity_metrics(session_id: str = "default") -> dict:
         seen_species.add(sp)
         accumulation.append({"observation_number": i, "cumulative_species": len(seen_species)})
 
+    _ecology_events.append({
+        "metrics": {
+            "shannon": round(h_prime, 3),
+            "simpson": round(simpson_1d, 3),
+            "richness": s,
+            "evenness": round(evenness, 3),
+        },
+    })
+
     return {
         "status": "ok",
         "total_observations": total_n,
@@ -1241,15 +1320,6 @@ async def calculate_biodiversity_metrics(session_id: str = "default") -> dict:
         "accumulation_curve": accumulation,
         "interpretation": ". ".join(interpretation_parts),
     }
-
-    _ecology_events.append({
-        "metrics": {
-            "shannon": round(h_prime, 3),
-            "simpson": round(simpson_1d, 3),
-            "richness": s,
-            "evenness": round(evenness, 3),
-        },
-    })
 
 
 # ── Tool: generate_survey_report ─────────────────────────────────────────────

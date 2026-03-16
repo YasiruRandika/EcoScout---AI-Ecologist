@@ -43,6 +43,9 @@ let currentInputTranscriptionElement = null;
 let currentOutputTranscriptionId = null;
 let currentOutputTranscriptionElement = null;
 let turnUsedTranscription = false;
+let lastAgentText = "";
+let lastAgentTextTime = 0;
+const DEDUP_WINDOW_MS = 5000;
 
 // Audio visualization state
 let vizAnimFrame = null;
@@ -50,8 +53,6 @@ let micAnalyser = null;
 let playerAnalyser = null;
 let listeningPlaceholderElement = null;
 let isAgentSpeaking = false;
-let agentStoppedSpeakingAt = 0;
-const ECHO_COOLDOWN_MS = 600;
 
 // ── DOM Elements ───────────────────────────────────────────────────────────
 
@@ -66,7 +67,6 @@ const captureCanvas = document.getElementById("captureCanvas");
 const cameraPlaceholder = document.getElementById("cameraPlaceholder");
 const gpsBadge = document.getElementById("gpsBadge");
 const gpsText = document.getElementById("gpsText");
-const voiceFab = document.getElementById("voiceFab");
 const audioVizCanvas = document.getElementById("audioViz");
 const convoSheet = document.getElementById("convoSheet");
 
@@ -120,7 +120,10 @@ function connectWebsocket() {
     } else if (data.type === "video_started") {
       handleVideoStarted(data);
     } else if (data.type === "ecology_update") {
+      console.log("[ECOSCOUT] ecology_update received:", JSON.stringify(data));
       handleEcologyUpdate(data);
+    } else if (data.type === "field_entry_ready") {
+      handleFieldEntryReady(data);
     } else {
       handleIncomingEvent(data);
     }
@@ -182,7 +185,6 @@ function handleIncomingEvent(adkEvent) {
     currentBubbleElement = null;
     currentOutputTranscriptionId = null;
     currentOutputTranscriptionElement = null;
-    turnUsedTranscription = false;
     if (listeningPlaceholderElement) {
       listeningPlaceholderElement.remove();
       listeningPlaceholderElement = null;
@@ -198,7 +200,6 @@ function handleIncomingEvent(adkEvent) {
     currentBubbleElement = null;
     currentOutputTranscriptionId = null;
     currentOutputTranscriptionElement = null;
-    turnUsedTranscription = false;
     if (listeningPlaceholderElement) {
       listeningPlaceholderElement.remove();
       listeningPlaceholderElement = null;
@@ -207,6 +208,7 @@ function handleIncomingEvent(adkEvent) {
   }
 
   if (adkEvent.inputTranscription?.text) {
+    turnUsedTranscription = false;
     handleTranscription(adkEvent.inputTranscription, true);
   }
 
@@ -230,6 +232,7 @@ function handleIncomingEvent(adkEvent) {
       if (part.text && !useTranscriptionForText) {
         const textContent = part.text;
         if (!currentMessageId) {
+          if (isDuplicateAgentText(textContent)) continue;
           currentMessageId = randomId();
           currentBubbleElement = createMessageBubble(textContent, false, true);
           currentBubbleElement.id = currentMessageId;
@@ -273,6 +276,7 @@ function handleTranscription(transcription, isInput) {
   } else {
     finalizeInputTranscriptionIfNeeded();
     if (!currentOutputTranscriptionId) {
+      if (isDuplicateAgentText(text)) return;
       currentOutputTranscriptionId = randomId();
       currentOutputTranscriptionElement = createMessageBubble(text, false, !isFinished);
       currentOutputTranscriptionElement.id = currentOutputTranscriptionId;
@@ -284,6 +288,10 @@ function handleTranscription(transcription, isInput) {
       updateMessageBubble(currentOutputTranscriptionElement, merged, !isFinished);
     }
     if (isFinished) {
+      if (currentOutputTranscriptionElement) {
+        lastAgentText = currentOutputTranscriptionElement.querySelector(".bubble-text")?.textContent || "";
+        lastAgentTextTime = Date.now();
+      }
       currentOutputTranscriptionId = null;
       currentOutputTranscriptionElement = null;
     }
@@ -349,7 +357,7 @@ function captureAndSendFrame() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result.split(",")[1];
-        websocket.send(JSON.stringify({ type: "image", data: base64, mimeType: "image/jpeg" }));
+        try { websocket.send(JSON.stringify({ type: "image", data: base64, mimeType: "image/jpeg" })); } catch (e) { console.warn("WS send image failed:", e.message); }
       };
       reader.readAsDataURL(blob);
     },
@@ -380,7 +388,7 @@ function handleGPSPosition(pos) {
   if (websocket?.readyState === WebSocket.OPEN) {
     const msg = { type: "gps", lat: latitude, lon: longitude };
     if (currentLocationName) msg.locationName = currentLocationName;
-    websocket.send(JSON.stringify(msg));
+    try { websocket.send(JSON.stringify(msg)); } catch (e) { console.warn("WS send gps failed:", e.message); }
   }
 
   if (shouldReverseGeocode(latitude, longitude)) {
@@ -392,12 +400,12 @@ function handleGPSPosition(pos) {
         lastGeocodedLat = latitude;
         lastGeocodedLon = longitude;
         if (websocket?.readyState === WebSocket.OPEN) {
-          websocket.send(JSON.stringify({
+          try { websocket.send(JSON.stringify({
             type: "gps",
             lat: latitude,
             lon: longitude,
             locationName: name,
-          }));
+          })); } catch (e) { console.warn("WS send gps failed:", e.message); }
         }
       }
     });
@@ -469,12 +477,12 @@ async function reverseGeocode(lat, lon) {
   } catch {
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=14`
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=18`
       );
       const data = await res.json();
       const addr = data.address || {};
       const parts = [
-        addr.park || addr.nature_reserve || addr.leisure || addr.tourism || "",
+        addr.tourism || addr.garden || addr.attraction || addr.park || addr.nature_reserve || addr.leisure || "",
         addr.city || addr.town || addr.village || addr.suburb || "",
         addr.state || addr.county || "",
       ].filter(Boolean);
@@ -525,8 +533,8 @@ async function startAudio() {
     return;
   }
 
-  voiceFab.classList.remove("disabled");
-  voiceFab.classList.add("active");
+  startAudioButton.classList.remove("disabled");
+  startAudioButton.classList.add("active");
   addSystemMessage("Voice mode active. Speak naturally!");
   startAudioVisualization();
 }
@@ -536,8 +544,8 @@ function stopAudio() {
   if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = false);
   }
-  voiceFab.classList.remove("active");
-  voiceFab.classList.add("muted");
+  startAudioButton.classList.remove("active");
+  startAudioButton.classList.add("muted");
   stopAudioVisualization();
   addSystemMessage("Microphone muted.");
 }
@@ -547,30 +555,28 @@ function resumeAudio() {
   if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
   }
-  voiceFab.classList.remove("muted");
-  voiceFab.classList.add("active");
+  startAudioButton.classList.remove("muted");
+  startAudioButton.classList.add("active");
   startAudioVisualization();
   addSystemMessage("Microphone unmuted.");
 }
 
 function showMicError(message) {
   addSystemMessage(message);
-  voiceFab.classList.remove("active", "disabled", "muted");
-  voiceFab.classList.add("error");
+  startAudioButton.classList.remove("active", "disabled", "muted");
+  startAudioButton.classList.add("error");
   isAudio = false;
-  setTimeout(() => voiceFab.classList.remove("error"), 4000);
+  setTimeout(() => startAudioButton.classList.remove("error"), 4000);
 }
 
 function audioRecorderHandler(pcmData) {
-  if (websocket?.readyState === WebSocket.OPEN && isAudio && !isMicDucked()) {
-    websocket.send(pcmData);
+  if (websocket?.readyState === WebSocket.OPEN && isAudio) {
+    try {
+      websocket.send(pcmData);
+    } catch (e) {
+      console.warn("WebSocket send failed:", e.message);
+    }
   }
-}
-
-function isMicDucked() {
-  if (isAgentSpeaking) return true;
-  if (agentStoppedSpeakingAt > 0 && (Date.now() - agentStoppedSpeakingAt) < ECHO_COOLDOWN_MS) return true;
-  return false;
 }
 
 let audioInitialized = false;
@@ -579,8 +585,8 @@ startAudioButton.addEventListener("click", () => {
   if (!audioInitialized) {
     audioInitialized = true;
     isAudio = true;
-    voiceFab.classList.remove("error");
-    voiceFab.classList.add("disabled");
+    startAudioButton.classList.remove("error");
+    startAudioButton.classList.add("disabled");
     startAudio();
   } else if (isAudio) {
     stopAudio();
@@ -592,25 +598,15 @@ startAudioButton.addEventListener("click", () => {
 // ── Audio Visualization ────────────────────────────────────────────────────
 
 function startAudioVisualization() {
-  const ctx = audioVizCanvas.getContext("2d");
-  const W = audioVizCanvas.width;
-  const H = audioVizCanvas.height;
-  const cx = W / 2;
-  const cy = H / 2;
-  const baseRadius = 30;
-
   const micData = micAnalyser ? new Uint8Array(micAnalyser.frequencyBinCount) : null;
   const playerData = playerAnalyser ? new Uint8Array(playerAnalyser.frequencyBinCount) : null;
 
-  function draw() {
-    vizAnimFrame = requestAnimationFrame(draw);
-    ctx.clearRect(0, 0, W, H);
+  function poll() {
+    vizAnimFrame = requestAnimationFrame(poll);
 
-    // Opaque background to prevent content behind canvas from showing through
-    ctx.fillStyle = "rgba(10, 15, 13, 0.95)";
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(W, H) / 2 + 2, 0, Math.PI * 2);
-    ctx.fill();
+    if (audioRecorderContext && audioRecorderContext.state === "suspended") {
+      audioRecorderContext.resume();
+    }
 
     let micLevel = 0;
     let playerLevel = 0;
@@ -626,55 +622,17 @@ function startAudioVisualization() {
 
     const isListening = micLevel > 0.05;
     const isSpeaking = playerLevel > 0.05;
-    if (isAgentSpeaking && !isSpeaking) {
-      agentStoppedSpeakingAt = Date.now();
-    }
     isAgentSpeaking = isSpeaking;
-    // Optimistic "Listening..." placeholder when user speaks but transcription not yet received
+
     if (isListening && !currentInputTranscriptionId && !listeningPlaceholderElement) {
       listeningPlaceholderElement = createMessageBubble("Listening...", true, true);
       listeningPlaceholderElement.classList.add("transcription");
       messagesDiv.appendChild(listeningPlaceholderElement);
       scrollToBottom();
     }
-    const level = Math.max(micLevel, playerLevel);
-    const r = baseRadius + level * 14;
-
-    // Outer glow ring
-    const glowColor = isSpeaking
-      ? `rgba(34, 211, 238, ${0.15 + level * 0.3})`
-      : `rgba(74, 222, 128, ${0.1 + level * 0.35})`;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
-    ctx.strokeStyle = glowColor;
-    ctx.lineWidth = 3 + level * 5;
-    ctx.stroke();
-
-    // Inner ring
-    if (isListening || isSpeaking) {
-      const innerColor = isSpeaking
-        ? `rgba(34, 211, 238, ${0.2 + level * 0.4})`
-        : `rgba(74, 222, 128, ${0.15 + level * 0.45})`;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
-      ctx.strokeStyle = innerColor;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-
-    // Subtle idle pulse
-    if (!isListening && !isSpeaking) {
-      const t = Date.now() / 2000;
-      const pulse = Math.sin(t * Math.PI) * 0.5 + 0.5;
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius + pulse * 2, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(74, 222, 128, ${0.08 + pulse * 0.08})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
   }
 
-  draw();
+  poll();
 }
 
 function stopAudioVisualization() {
@@ -682,8 +640,6 @@ function stopAudioVisualization() {
     cancelAnimationFrame(vizAnimFrame);
     vizAnimFrame = null;
   }
-  const ctx = audioVizCanvas.getContext("2d");
-  ctx.clearRect(0, 0, audioVizCanvas.width, audioVizCanvas.height);
 }
 
 // ── Text input ─────────────────────────────────────────────────────────────
@@ -696,7 +652,7 @@ function sendTextMessage() {
   scrollToBottom();
   messageInput.value = "";
   if (websocket?.readyState === WebSocket.OPEN) {
-    websocket.send(JSON.stringify({ type: "text", text: msg }));
+    try { websocket.send(JSON.stringify({ type: "text", text: msg })); } catch (e) { console.warn("WS send text failed:", e.message); }
   } else {
     addSystemMessage("Not connected. Retrying...");
   }
@@ -846,6 +802,15 @@ function randomId() {
   return Math.random().toString(36).substring(2, 9);
 }
 
+function isDuplicateAgentText(text) {
+  if (!text || !lastAgentText) return false;
+  const now = Date.now();
+  if ((now - lastAgentTextTime) > DEDUP_WINDOW_MS) return false;
+  const a = text.trim().slice(0, 120);
+  const b = lastAgentText.trim().slice(0, 120);
+  return a === b || b.startsWith(a) || a.startsWith(b);
+}
+
 /** Merge transcription text: handles both delta (append) and full-text (replace) updates. */
 function mergeTranscriptionText(existing, incoming) {
   if (!incoming) return existing;
@@ -986,6 +951,49 @@ function handleVideoReady(data) {
   scrollToBottom();
 }
 
+function handleFieldEntryReady(data) {
+  const { entry_id, species_name, common_name, text_content, image_url } = data;
+  if (!image_url) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "message agent";
+
+  const card = document.createElement("div");
+  card.className = "video-card field-entry-card";
+
+  const label = document.createElement("div");
+  label.className = "card-label";
+  label.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Field Guide: ${common_name || species_name || "Entry"}`;
+  card.appendChild(label);
+
+  const img = document.createElement("img");
+  img.src = image_url;
+  img.alt = `Field guide illustration of ${common_name || species_name}`;
+  img.style.cssText = "width:100%;border-radius:8px;margin:8px 0";
+  img.addEventListener("error", () => {
+    img.style.display = "none";
+    const link = document.createElement("a");
+    link.href = image_url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Open image in new tab";
+    link.className = "video-fallback-link";
+    card.appendChild(link);
+  });
+  card.appendChild(img);
+
+  if (text_content) {
+    const desc = document.createElement("div");
+    desc.style.cssText = "padding:8px 4px;font-size:0.9em;line-height:1.4;opacity:0.9";
+    desc.textContent = text_content;
+    card.appendChild(desc);
+  }
+
+  wrapper.appendChild(card);
+  messagesDiv.appendChild(wrapper);
+  scrollToBottom();
+}
+
 // ── Sheet drag / expand logic ──────────────────────────────────────────────
 
 let sheetStartY = 0;
@@ -1003,7 +1011,6 @@ sheetHandle.addEventListener("touchmove", (e) => {
   const dy = sheetStartY - e.touches[0].clientY;
   const newH = Math.min(Math.max(sheetStartHeight + dy, 120), window.innerHeight * 0.85);
   convoSheet.style.height = newH + "px";
-  voiceFab.style.bottom = (newH + 16) + "px";
 }, { passive: true });
 
 sheetHandle.addEventListener("touchend", () => {
@@ -1014,16 +1021,13 @@ sheetHandle.addEventListener("touchend", () => {
     convoSheet.classList.add("expanded");
     convoSheet.classList.remove("collapsed");
     convoSheet.style.height = "";
-    voiceFab.style.bottom = "";
   } else if (h < 160) {
     convoSheet.classList.add("collapsed");
     convoSheet.classList.remove("expanded");
     convoSheet.style.height = "";
-    voiceFab.style.bottom = "";
   } else {
     convoSheet.classList.remove("expanded", "collapsed");
     convoSheet.style.height = "";
-    voiceFab.style.bottom = "";
   }
 });
 

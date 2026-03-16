@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoScout - System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #f1f5f9;
+  --surface:      #ffffff;
+  --border:       #e2e8f0;
+  --border-md:    #cbd5e1;
+  --text:         #0f172a;
+  --text-2:       #334155;
+  --text-3:       #64748b;
+  --text-4:       #94a3b8;
+
+  --device-main:  #16a34a;
+  --device-bg:    #f0fdf4;
+  --device-bdr:   #bbf7d0;
+  --device-txt:   #166534;
+
+  --server-main:  #1a73e8;
+  --server-bg:    #eff6ff;
+  --server-bdr:   #bfdbfe;
+  --server-txt:   #1e40af;
+
+  --gemini-main:  #7c3aed;
+  --gemini-bg:    #f5f3ff;
+  --gemini-bdr:   #ddd6fe;
+  --gemini-txt:   #5b21b6;
+
+  --cloud-main:   #d97706;
+  --cloud-bg:     #fffbeb;
+  --cloud-bdr:    #fde68a;
+  --cloud-txt:    #92400e;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+}
+
+html { font-family: var(--font-body); font-size: 14px; }
+body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ============================================================
+   PAGE
+   ============================================================ */
+.page { max-width: 1440px; margin: 0 auto; padding: 32px 24px 64px; }
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.header-logo {
+  width: 52px; height: 52px;
+  background: linear-gradient(135deg, #16a34a, #0d9488);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(22,163,74,.25);
+}
+.header-text h1 {
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+}
+.header-text p {
+  color: var(--text-3);
+  font-size: 0.88rem;
+  margin-top: 3px;
+}
+.header-badge {
+  margin-left: auto;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(99,102,241,.3);
+}
+
+/* ============================================================
+   STATS RIBBON
+   ============================================================ */
+.stats-ribbon {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.stat-item {
+  flex: 1;
+  background: var(--surface);
+  padding: 16px 20px;
+  text-align: center;
+  min-width: 100px;
+}
+.stat-number {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 0.68rem;
+  color: var(--text-3);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   TAB NAV
+   ============================================================ */
+.tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 4px;
+  width: fit-content;
+}
+.tab-btn {
+  padding: 9px 22px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tab-btn:hover { color: var(--text); background: var(--bg); }
+.tab-btn.active { background: var(--text); color: #fff; }
+
+/* ============================================================
+   TAB CONTENT
+   ============================================================ */
+.tab-content { display: none; }
+.tab-content.active {
+  display: block;
+  animation: fadeUp 0.3s ease-out;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   ARCHITECTURE VIEW - WRAPPER
+   ============================================================ */
+.arch-wrapper {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.arch-main { flex: 1; min-width: 0; }
+.detail-panel { width: 320px; flex-shrink: 0; display: none; }
+.detail-panel.visible { display: block; }
+
+/* ============================================================
+   ARCHITECTURE GRID
+   Left-to-right: Device -> Cloud Run -> Gemini
+   Persist path: Cloud Run -> Cloud Services (below)
+   ============================================================ */
+.arch-grid {
+  display: grid;
+  grid-template-areas:
+    "device   hconn1  cloudrun  hconn2  gemini"
+    ".        .       vconn     .       .     "
+    ".        .       storage   .       .     ";
+  grid-template-columns: 1fr 72px 1fr 72px 1fr;
+  grid-template-rows: auto 56px auto;
+}
+.g-device   { grid-area: device; }
+.g-cloudrun { grid-area: cloudrun; }
+.g-gemini   { grid-area: gemini; }
+.g-storage  { grid-area: storage; }
+.g-hconn1   { grid-area: hconn1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.g-hconn2   { grid-area: hconn2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.g-vconn    { grid-area: vconn;  display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+/* ============================================================
+   LAYER CARDS
+   ============================================================ */
+.layer-card {
+  border-radius: var(--r-xl);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  transition: box-shadow 0.25s, opacity 0.25s;
+}
+.layer-card.focused { box-shadow: 0 6px 28px rgba(0,0,0,.1); }
+.layer-card.dimmed  { opacity: 0.3; }
+
+.layer-header {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.layer-icon {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.layer-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.layer-sub { font-size: 0.67rem; color: var(--text-3); margin-top: 2px; }
+.layer-body { padding: 12px; }
+
+/* colour variants */
+.device-card  { border-color: var(--device-bdr); }
+.device-card  .layer-header { background: var(--device-bg); }
+.device-card  .layer-icon   { background: rgba(22,163,74,.1); }
+.device-card  .layer-title  { color: var(--device-txt); }
+
+.server-card  { border-color: var(--server-bdr); }
+.server-card  .layer-header { background: var(--server-bg); }
+.server-card  .layer-icon   { background: rgba(26,115,232,.1); }
+.server-card  .layer-title  { color: var(--server-txt); }
+
+.gemini-card  { border-color: var(--gemini-bdr); }
+.gemini-card  .layer-header { background: var(--gemini-bg); }
+.gemini-card  .layer-icon   { background: rgba(124,58,237,.1); }
+.gemini-card  .layer-title  { color: var(--gemini-txt); }
+
+.cloud-card   { border-color: var(--cloud-bdr); }
+.cloud-card   .layer-header { background: var(--cloud-bg); }
+.cloud-card   .layer-icon   { background: rgba(217,119,6,.1); }
+.cloud-card   .layer-title  { color: var(--cloud-txt); }
+
+/* ============================================================
+   COMPONENT CHIPS
+   ============================================================ */
+.comp-list { display: flex; flex-direction: column; gap: 6px; }
+
+.comp-chip {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.comp-chip:hover  { background: #fff; border-color: var(--border-md); transform: translateX(2px); }
+.comp-chip.active { background: #fff; }
+
+.comp-icon {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.comp-name   { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
+.comp-detail { font-size: 0.68rem; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+.comp-badge  {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-top: 5px;
+}
+
+.device-chip  .comp-icon  { background: rgba(22,163,74,.1); }
+.device-chip  .comp-badge { background: var(--device-bg); color: var(--device-txt); border: 1px solid var(--device-bdr); }
+.device-chip:hover, .device-chip.active { border-color: var(--device-main); }
+
+.server-chip  .comp-icon  { background: rgba(26,115,232,.1); }
+.server-chip  .comp-badge { background: var(--server-bg); color: var(--server-txt); border: 1px solid var(--server-bdr); }
+.server-chip:hover, .server-chip.active { border-color: var(--server-main); }
+
+.gemini-chip  .comp-icon  { background: rgba(124,58,237,.1); }
+.gemini-chip  .comp-badge { background: var(--gemini-bg); color: var(--gemini-txt); border: 1px solid var(--gemini-bdr); }
+.gemini-chip:hover, .gemini-chip.active { border-color: var(--gemini-main); }
+
+.cloud-chip   .comp-icon  { background: rgba(217,119,6,.1); }
+.cloud-chip   .comp-badge { background: var(--cloud-bg); color: var(--cloud-txt); border: 1px solid var(--cloud-bdr); }
+.cloud-chip:hover, .cloud-chip.active { border-color: var(--cloud-main); }
+
+/* ============================================================
+   HORIZONTAL CONNECTORS
+   ============================================================ */
+.hconn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.hconn svg { width: 100%; overflow: visible; }
+.conn-chip {
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px 9px;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   VERTICAL CONNECTOR (Cloud Run -> Cloud Services)
+   ============================================================ */
+.vconn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.vconn svg { overflow: visible; }
+.vconn-label {
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   HINT TEXT
+   ============================================================ */
+.arch-hint {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-4);
+  margin-top: 14px;
+}
+.arch-hint strong { color: var(--text-3); font-weight: 500; }
+
+/* ============================================================
+   LEGEND
+   ============================================================ */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  margin-top: 20px;
+  padding: 14px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.l-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ============================================================
+   DETAIL PANEL
+   ============================================================ */
+.detail-inner {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  position: sticky;
+  top: 24px;
+  animation: fadeUp 0.25s ease-out;
+}
+.detail-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.detail-icon {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.detail-close {
+  margin-left: auto;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.detail-close:hover { background: var(--bg); color: var(--text); }
+.detail-title { font-size: 0.98rem; font-weight: 700; }
+.detail-layer { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; margin-top: 2px; }
+.detail-body  { padding: 18px 20px; }
+.detail-desc  { font-size: 0.8rem; color: var(--text-2); line-height: 1.65; margin-bottom: 16px; }
+.section-lbl  { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-4); margin-bottom: 8px; }
+.detail-specs { list-style: none; margin-bottom: 16px; }
+.detail-specs li {
+  font-size: 0.76rem;
+  color: var(--text-3);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--bg);
+  display: flex; gap: 8px;
+}
+.detail-specs li::before { content: '•'; color: var(--text-4); flex-shrink: 0; }
+.detail-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   DATA FLOW TAB
+   ============================================================ */
+.flow-wrap { max-width: 760px; margin: 0 auto; }
+.flow-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.flow-btn {
+  padding: 8px 20px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.flow-btn:hover { border-color: var(--border-md); }
+.flow-btn:disabled { opacity: 0.35; cursor: default; }
+.flow-btn.primary { background: var(--text); color: #fff; border-color: var(--text); }
+.flow-step-count  { font-size: 0.82rem; color: var(--text-3); }
+
+.flow-timeline { position: relative; }
+.flow-timeline::before {
+  content: '';
+  position: absolute;
+  left: 27px; top: 0; bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(180deg, var(--border) 0, var(--border) 6px, transparent 6px, transparent 12px);
+}
+.flow-step {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 14px;
+  opacity: 0.22;
+  transition: opacity 0.4s;
+}
+.flow-step.active { opacity: 1; }
+.flow-step.done   { opacity: 0.55; }
+
+.step-num {
+  width: 54px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15px;
+}
+.step-circle {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+  transition: box-shadow 0.3s;
+}
+.flow-step.active .step-circle {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px currentColor;
+}
+.step-card {
+  flex: 1;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 15px 18px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.flow-step.active .step-card { box-shadow: 0 4px 18px rgba(0,0,0,.07); }
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.step-icon  { font-size: 1.15rem; }
+.step-title { font-size: 0.9rem; font-weight: 700; }
+.step-layer {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.step-body  { font-size: 0.79rem; color: var(--text-2); line-height: 1.65; }
+.data-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.data-chip  {
+  font-size: 0.66rem;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  background: var(--bg);
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================================
+   AGENT TOOLS TAB
+   ============================================================ */
+.tools-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.tools-hdr-title { font-size: 0.98rem; font-weight: 700; color: var(--text-2); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.flt-btn {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.flt-btn:hover  { border-color: var(--border-md); color: var(--text); }
+.flt-btn.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+}
+.tool-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 20px;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.tool-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.tool-card:hover {
+  border-color: var(--border-md);
+  box-shadow: 0 4px 20px rgba(0,0,0,.07);
+  transform: translateY(-2px);
+}
+.tool-card.hidden { display: none; }
+
+.tc-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+.tc-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.tc-fn  { font-size: 0.82rem; font-weight: 700; font-family: 'Courier New', monospace; }
+.tc-cat { font-size: 0.63rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; margin-top: 2px; }
+.tc-desc {
+  font-size: 0.77rem;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.tc-apis { display: flex; flex-wrap: wrap; gap: 5px; }
+.tc-api  {
+  font-size: 0.63rem;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+
+.cat-obs  .tc-icon { background: var(--device-bg); }
+.cat-obs  .tc-cat  { color: var(--device-txt); }
+.cat-obs::before   { background: var(--device-main); }
+.cat-obs:hover     { border-color: var(--device-bdr); }
+
+.cat-bio  .tc-icon { background: #f0f9ff; }
+.cat-bio  .tc-cat  { color: #0369a1; }
+.cat-bio::before   { background: #0ea5e9; }
+.cat-bio:hover     { border-color: #bae6fd; }
+
+.cat-med  .tc-icon { background: var(--gemini-bg); }
+.cat-med  .tc-cat  { color: var(--gemini-txt); }
+.cat-med::before   { background: var(--gemini-main); }
+.cat-med:hover     { border-color: var(--gemini-bdr); }
+
+.cat-dat  .tc-icon { background: var(--cloud-bg); }
+.cat-dat  .tc-cat  { color: var(--cloud-txt); }
+.cat-dat::before   { background: var(--cloud-main); }
+.cat-dat:hover     { border-color: var(--cloud-bdr); }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 960px) {
+  .arch-wrapper   { flex-direction: column; }
+  .detail-panel   { width: 100%; }
+  .arch-grid {
+    grid-template-areas:
+      "device"
+      "hconn1"
+      "cloudrun"
+      "hconn2"
+      "gemini"
+      "vconn"
+      "storage";
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .g-hconn1, .g-hconn2 { height: 44px; }
+  .g-vconn              { height: 44px; }
+  .hconn svg, .vconn svg { transform: rotate(90deg); }
+}
+@media (max-width: 600px) {
+  .stats-ribbon   { flex-direction: column; gap: 0; }
+  .header-badge   { display: none; }
+  h1              { font-size: 1.6rem; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ====================== HEADER ====================== -->
+  <div class="header">
+    <div class="header-logo">🌿</div>
+    <div class="header-text">
+      <h1>EcoScout</h1>
+      <p>Live Environmental Intelligence Companion - System Architecture</p>
+    </div>
+    <div class="header-badge">Gemini Live Challenge 2026</div>
+  </div>
+
+  <!-- ====================== STATS RIBBON ====================== -->
+  <div class="stats-ribbon">
+    <div class="stat-item">
+      <div class="stat-number" style="color:var(--device-main)">5</div>
+      <div class="stat-label">PWA Capabilities</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" style="color:var(--server-main)">5</div>
+      <div class="stat-label">Backend Services</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" style="color:var(--gemini-main)">4</div>
+      <div class="stat-label">AI Models</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" style="color:var(--cloud-main)">4</div>
+      <div class="stat-label">Cloud Services</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" style="color:#0369a1">10</div>
+      <div class="stat-label">Agent Tools</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" style="color:#be123c">3</div>
+      <div class="stat-label">External APIs</div>
+    </div>
+  </div>
+
+  <!-- ====================== TAB NAV ====================== -->
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-arch">
+      <span>&#127959;</span> Architecture
+    </button>
+    <button class="tab-btn" data-tab="tab-flow">
+      <span>&#9889;</span> Data Flow
+    </button>
+    <button class="tab-btn" data-tab="tab-tools">
+      <span>&#128295;</span> Agent Tools
+    </button>
+  </div>
+
+  <!-- ==================================================
+       TAB 1: ARCHITECTURE
+       ================================================== -->
+  <div id="tab-arch" class="tab-content active">
+    <div class="arch-wrapper">
+
+      <!-- DIAGRAM -->
+      <div class="arch-main">
+        <div class="arch-grid">
+
+          <!-- ── Column 1: User Device ── -->
+          <div class="layer-card device-card g-device" id="col-device">
+            <div class="layer-header">
+              <div class="layer-icon">&#128241;</div>
+              <div>
+                <div class="layer-title">User Device</div>
+                <div class="layer-sub">Mobile Browser PWA</div>
+              </div>
+            </div>
+            <div class="layer-body">
+              <div class="comp-list">
+                <div class="comp-chip device-chip" data-comp="camera">
+                  <div class="comp-icon">&#128247;</div>
+                  <div>
+                    <div class="comp-name">Camera</div>
+                    <div class="comp-detail">JPEG @ 1 fps - 640x480</div>
+                    <span class="comp-badge">getUserMedia API</span>
+                  </div>
+                </div>
+                <div class="comp-chip device-chip" data-comp="microphone">
+                  <div class="comp-icon">&#127897;</div>
+                  <div>
+                    <div class="comp-name">Microphone</div>
+                    <div class="comp-detail">PCM 16kHz mono - echo cancellation</div>
+                    <span class="comp-badge">AudioWorklet</span>
+                  </div>
+                </div>
+                <div class="comp-chip device-chip" data-comp="gps">
+                  <div class="comp-icon">&#128205;</div>
+                  <div>
+                    <div class="comp-name">GPS</div>
+                    <div class="comp-detail">Real-time coordinates - geo-tagging</div>
+                    <span class="comp-badge">Geolocation API</span>
+                  </div>
+                </div>
+                <div class="comp-chip device-chip" data-comp="pwa">
+                  <div class="comp-icon">&#128187;</div>
+                  <div>
+                    <div class="comp-name">Vanilla JS PWA</div>
+                    <div class="comp-detail">Camera - Gallery - Video Player - Journal</div>
+                    <span class="comp-badge">Vanilla JS + CSS</span>
+                  </div>
+                </div>
+                <div class="comp-chip device-chip" data-comp="dashboard">
+                  <div class="comp-icon">&#128202;</div>
+                  <div>
+                    <div class="comp-name">Live Survey Dashboard</div>
+                    <div class="comp-detail">D3.js food web - Shannon H' - Accumulation curve</div>
+                    <span class="comp-badge">ecology-viz.js</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Connector 1: Device <-> Cloud Run (bidirectional WebSocket) ── -->
+          <div class="g-hconn1">
+            <div class="hconn" id="hconn1">
+              <svg height="56" viewBox="0 0 72 56">
+                <defs>
+                  <path id="ws-r" d="M2,20 L70,20"/>
+                  <path id="ws-l" d="M70,36 L2,36"/>
+                </defs>
+                <!-- Arrow: Device -> Cloud Run -->
+                <line x1="2" y1="20" x2="66" y2="20" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="5 3"/>
+                <polygon points="70,20 62,15 62,25" fill="#16a34a"/>
+                <!-- Arrow: Cloud Run -> Device -->
+                <line x1="70" y1="36" x2="6" y2="36" stroke="#1a73e8" stroke-width="1.8" stroke-dasharray="5 3"/>
+                <polygon points="2,36 10,31 10,41" fill="#1a73e8"/>
+                <!-- Particles right -->
+                <circle r="3.5" fill="#16a34a">
+                  <animateMotion dur="1.9s" repeatCount="indefinite" begin="0s"><mpath href="#ws-r"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="1.9s" repeatCount="indefinite" begin="0s"/>
+                </circle>
+                <circle r="3.5" fill="#16a34a">
+                  <animateMotion dur="1.9s" repeatCount="indefinite" begin="0.95s"><mpath href="#ws-r"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="1.9s" repeatCount="indefinite" begin="0.95s"/>
+                </circle>
+                <!-- Particles left -->
+                <circle r="3.5" fill="#1a73e8">
+                  <animateMotion dur="2.3s" repeatCount="indefinite" begin="0.4s"><mpath href="#ws-l"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="2.3s" repeatCount="indefinite" begin="0.4s"/>
+                </circle>
+                <circle r="3.5" fill="#1a73e8">
+                  <animateMotion dur="2.3s" repeatCount="indefinite" begin="1.55s"><mpath href="#ws-l"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="2.3s" repeatCount="indefinite" begin="1.55s"/>
+                </circle>
+              </svg>
+              <div class="conn-chip">WebSocket<br>Bidirectional</div>
+            </div>
+          </div>
+
+          <!-- ── Column 2: Cloud Run ── -->
+          <div class="layer-card server-card g-cloudrun" id="col-cloudrun">
+            <div class="layer-header">
+              <div class="layer-icon">&#9729;</div>
+              <div>
+                <div class="layer-title">Google Cloud Run</div>
+                <div class="layer-sub">FastAPI + ADK Runtime</div>
+              </div>
+            </div>
+            <div class="layer-body">
+              <div class="comp-list">
+                <div class="comp-chip server-chip" data-comp="ws-endpoint">
+                  <div class="comp-icon">&#128268;</div>
+                  <div>
+                    <div class="comp-name">WebSocket Endpoint</div>
+                    <div class="comp-detail">/ws/{user_id}/{session_id} - Session affinity</div>
+                    <span class="comp-badge">FastAPI + Uvicorn</span>
+                  </div>
+                </div>
+                <div class="comp-chip server-chip" data-comp="adk-runner">
+                  <div class="comp-icon">&#127939;</div>
+                  <div>
+                    <div class="comp-name">ADK Runner</div>
+                    <div class="comp-detail">run_live() bidi stream - LiveRequestQueue</div>
+                    <span class="comp-badge">google-adk &ge; 1.18</span>
+                  </div>
+                </div>
+                <div class="comp-chip server-chip" data-comp="agent">
+                  <div class="comp-icon">&#129302;</div>
+                  <div>
+                    <div class="comp-name">EcoScout Agent</div>
+                    <div class="comp-detail">Naturalist persona - Proactive - Affective</div>
+                    <span class="comp-badge">LlmAgent</span>
+                  </div>
+                </div>
+                <div class="comp-chip server-chip" data-comp="video-task">
+                  <div class="comp-icon">&#127909;</div>
+                  <div>
+                    <div class="comp-name">Video Notification Task</div>
+                    <div class="comp-detail">Poll _video_ready_events - Send video_ready</div>
+                    <span class="comp-badge">asyncio task</span>
+                  </div>
+                </div>
+                <div class="comp-chip server-chip" data-comp="ecology-task">
+                  <div class="comp-icon">&#127807;</div>
+                  <div>
+                    <div class="comp-name">Ecology Notification Task</div>
+                    <div class="comp-detail">Drain _ecology_events - Send ecology_update</div>
+                    <span class="comp-badge">asyncio task</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Connector 2: Cloud Run -> Gemini APIs ── -->
+          <div class="g-hconn2">
+            <div class="hconn" id="hconn2">
+              <svg height="56" viewBox="0 0 72 56">
+                <defs>
+                  <path id="api-r" d="M2,28 L70,28"/>
+                </defs>
+                <line x1="2" y1="28" x2="66" y2="28" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 3"/>
+                <polygon points="70,28 62,23 62,33" fill="#7c3aed"/>
+                <circle r="3.5" fill="#7c3aed">
+                  <animateMotion dur="1.7s" repeatCount="indefinite" begin="0s"><mpath href="#api-r"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="1.7s" repeatCount="indefinite" begin="0s"/>
+                </circle>
+                <circle r="3.5" fill="#7c3aed">
+                  <animateMotion dur="1.7s" repeatCount="indefinite" begin="0.85s"><mpath href="#api-r"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="1.7s" repeatCount="indefinite" begin="0.85s"/>
+                </circle>
+              </svg>
+              <div class="conn-chip">API Calls<br>Bidi Streaming</div>
+            </div>
+          </div>
+
+          <!-- ── Column 3: Gemini AI APIs ── -->
+          <div class="layer-card gemini-card g-gemini" id="col-gemini">
+            <div class="layer-header">
+              <div class="layer-icon">&#10024;</div>
+              <div>
+                <div class="layer-title">Gemini AI APIs</div>
+                <div class="layer-sub">Google AI Models</div>
+              </div>
+            </div>
+            <div class="layer-body">
+              <div class="comp-list">
+                <div class="comp-chip gemini-chip" data-comp="gemini-live">
+                  <div class="comp-icon">&#128266;</div>
+                  <div>
+                    <div class="comp-name">Gemini Live API</div>
+                    <div class="comp-detail">Bidi WebSocket - Audio + Video + Tool calls</div>
+                    <span class="comp-badge">gemini-live-2.5-flash-native-audio</span>
+                  </div>
+                </div>
+                <div class="comp-chip gemini-chip" data-comp="gemini-image">
+                  <div class="comp-icon">&#128444;</div>
+                  <div>
+                    <div class="comp-name">Gemini 3 Pro Image</div>
+                    <div class="comp-detail">Interleaved text + image - Field guide illustrations</div>
+                    <span class="comp-badge">gemini-3-pro-image-preview</span>
+                  </div>
+                </div>
+                <div class="comp-chip gemini-chip" data-comp="veo">
+                  <div class="comp-icon">&#127909;</div>
+                  <div>
+                    <div class="comp-name">Veo 3.1</div>
+                    <div class="comp-detail">Video generation + extension - Nature documentaries</div>
+                    <span class="comp-badge">veo-3.1-generate-preview</span>
+                  </div>
+                </div>
+                <div class="comp-chip gemini-chip" data-comp="google-search">
+                  <div class="comp-icon">&#128269;</div>
+                  <div>
+                    <div class="comp-name">Google Search</div>
+                    <div class="comp-detail">Grounding + citations - Species verification</div>
+                    <span class="comp-badge">ADK built-in tool</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Vertical Connector: Cloud Run -> Cloud Services ── -->
+          <div class="g-vconn">
+            <div class="vconn" id="vconn">
+              <div class="vconn-label">Persist</div>
+              <svg width="40" height="30" viewBox="0 0 40 30">
+                <defs>
+                  <path id="persist-d" d="M20,0 L20,30"/>
+                </defs>
+                <line x1="20" y1="0" x2="20" y2="24" stroke="#d97706" stroke-width="1.8" stroke-dasharray="5 3"/>
+                <polygon points="20,30 14,21 26,21" fill="#d97706"/>
+                <circle r="3" fill="#d97706">
+                  <animateMotion dur="2s" repeatCount="indefinite" begin="0s"><mpath href="#persist-d"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="2s" repeatCount="indefinite" begin="0s"/>
+                </circle>
+                <circle r="3" fill="#d97706">
+                  <animateMotion dur="2s" repeatCount="indefinite" begin="1s"><mpath href="#persist-d"/></animateMotion>
+                  <animate attributeName="opacity" values="0;1;1;0" dur="2s" repeatCount="indefinite" begin="1s"/>
+                </circle>
+              </svg>
+            </div>
+          </div>
+
+          <!-- ── Cloud Services (below Cloud Run) ── -->
+          <div class="layer-card cloud-card g-storage" id="col-storage">
+            <div class="layer-header">
+              <div class="layer-icon">&#128190;</div>
+              <div>
+                <div class="layer-title">Google Cloud Services</div>
+                <div class="layer-sub">Storage, State and External Data</div>
+              </div>
+            </div>
+            <div class="layer-body">
+              <div class="comp-list">
+                <div class="comp-chip cloud-chip" data-comp="firestore">
+                  <div class="comp-icon">&#128451;</div>
+                  <div>
+                    <div class="comp-name">Cloud Firestore</div>
+                    <div class="comp-detail">Sessions - observations - video metadata - GPS tracks</div>
+                    <span class="comp-badge">AsyncClient</span>
+                  </div>
+                </div>
+                <div class="comp-chip cloud-chip" data-comp="cloud-storage">
+                  <div class="comp-icon">&#128230;</div>
+                  <div>
+                    <div class="comp-name">Cloud Storage</div>
+                    <div class="comp-detail">Field guide images (PNG) - Videos (MP4) - Journals</div>
+                    <span class="comp-badge">Signed URLs</span>
+                  </div>
+                </div>
+                <div class="comp-chip cloud-chip" data-comp="inaturalist">
+                  <div class="comp-icon">&#129419;</div>
+                  <div>
+                    <div class="comp-name">iNaturalist</div>
+                    <div class="comp-detail">100M+ observations - taxonomy - conservation status</div>
+                    <span class="comp-badge">REST API</span>
+                  </div>
+                </div>
+                <div class="comp-chip cloud-chip" data-comp="open-meteo">
+                  <div class="comp-icon">&#127780;</div>
+                  <div>
+                    <div class="comp-name">Open-Meteo</div>
+                    <div class="comp-detail">Weather - temp - humidity - wind (ecological context)</div>
+                    <span class="comp-badge">REST API</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /arch-grid -->
+
+        <!-- Hint -->
+        <p class="arch-hint"><strong>Tip:</strong> Click any component to view technical details. Hover over a layer to focus it.</p>
+
+        <!-- Legend -->
+        <div class="legend">
+          <div class="legend-item"><div class="l-dot" style="background:var(--device-main)"></div>User Device / Input</div>
+          <div class="legend-item"><div class="l-dot" style="background:var(--server-main)"></div>Cloud Run Backend</div>
+          <div class="legend-item"><div class="l-dot" style="background:var(--gemini-main)"></div>Gemini AI Models</div>
+          <div class="legend-item"><div class="l-dot" style="background:var(--cloud-main)"></div>Cloud Services / State</div>
+          <div class="legend-item">
+            <svg width="34" height="12" style="flex-shrink:0">
+              <line x1="0" y1="6" x2="30" y2="6" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 3"/>
+              <polygon points="34,6 26,2 26,10" fill="#94a3b8"/>
+            </svg>
+            Unidirectional flow
+          </div>
+          <div class="legend-item">
+            <svg width="34" height="12" style="flex-shrink:0">
+              <line x1="0" y1="6" x2="34" y2="6" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 3"/>
+              <polygon points="0,6 8,2 8,10" fill="#94a3b8"/>
+              <polygon points="34,6 26,2 26,10" fill="#94a3b8"/>
+            </svg>
+            Bidirectional WebSocket
+          </div>
+          <div class="legend-item">
+            <svg width="12" height="12" style="flex-shrink:0">
+              <circle cx="6" cy="6" r="4" fill="#94a3b8">
+                <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+            Animated data packets
+          </div>
+        </div>
+
+      </div><!-- /arch-main -->
+
+      <!-- DETAIL PANEL -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="detail-inner">
+          <div class="detail-head">
+            <div class="detail-icon" id="d-icon"></div>
+            <div>
+              <div class="detail-title" id="d-title"></div>
+              <div class="detail-layer" id="d-layer"></div>
+            </div>
+            <button class="detail-close" onclick="closeDetail()" title="Close">&#10005;</button>
+          </div>
+          <div class="detail-body">
+            <p class="detail-desc" id="d-desc"></p>
+            <div class="section-lbl">Specifications</div>
+            <ul class="detail-specs" id="d-specs"></ul>
+            <div id="d-badge"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /tab-arch -->
+
+  <!-- ==================================================
+       TAB 2: DATA FLOW
+       ================================================== -->
+  <div id="tab-flow" class="tab-content">
+    <div class="flow-wrap">
+      <div class="flow-controls">
+        <button class="flow-btn" id="btn-prev" onclick="prevStep()" disabled>&#8592; Previous</button>
+        <span class="flow-step-count" id="step-count">Step 1 of 8</span>
+        <button class="flow-btn primary" id="btn-next" onclick="nextStep()">Next &#8594;</button>
+        <button class="flow-btn" onclick="resetFlow()" style="margin-left:6px">Reset</button>
+      </div>
+
+      <div class="flow-timeline" id="flow-timeline">
+
+        <div class="flow-step active" data-step="1">
+          <div class="step-num"><div class="step-circle" style="background:var(--device-bg);color:var(--device-txt);border:2px solid var(--device-main)">1</div></div>
+          <div class="step-card" style="border-color:var(--device-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#128241;</span>
+              <span class="step-title">User Captures Input</span>
+              <span class="step-layer" style="background:var(--device-bg);color:var(--device-txt)">User Device</span>
+            </div>
+            <div class="step-body">The mobile PWA simultaneously captures audio from the microphone, JPEG frames from the camera, and GPS coordinates. Echo cancellation is enabled to prevent feedback loops. The user can mute the microphone at any time without dropping the WebSocket connection.</div>
+            <div class="data-chips">
+              <span class="data-chip">PCM 16kHz mono</span>
+              <span class="data-chip">JPEG 640x480 @ 1fps</span>
+              <span class="data-chip">GPS coordinates</span>
+              <span class="data-chip">Echo cancellation ON</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="2">
+          <div class="step-num"><div class="step-circle" style="background:var(--device-bg);color:var(--device-txt);border:2px solid var(--device-main)">2</div></div>
+          <div class="step-card" style="border-color:var(--device-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#128279;</span>
+              <span class="step-title">Data Sent via WebSocket</span>
+              <span class="step-layer" style="background:var(--device-bg);color:var(--device-txt)">User Device</span>
+            </div>
+            <div class="step-body">A single persistent WebSocket connection carries all data to Cloud Run. Audio chunks are sent as binary frames every 100ms. Camera frames and GPS updates are sent as JSON frames. This single-connection architecture avoids reconnection overhead and maintains session state cleanly.</div>
+            <div class="data-chips">
+              <span class="data-chip">Binary: PCM ~3200B / 100ms</span>
+              <span class="data-chip">JSON: {type:"image", data:b64}</span>
+              <span class="data-chip">JSON: {type:"gps", lat, lng}</span>
+              <span class="data-chip">/ws/{user_id}/{session_id}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="3">
+          <div class="step-num"><div class="step-circle" style="background:var(--server-bg);color:var(--server-txt);border:2px solid var(--server-main)">3</div></div>
+          <div class="step-card" style="border-color:var(--server-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#9729;</span>
+              <span class="step-title">Cloud Run Receives and Routes</span>
+              <span class="step-layer" style="background:var(--server-bg);color:var(--server-txt)">Cloud Run</span>
+            </div>
+            <div class="step-body">FastAPI WebSocket endpoint on Cloud Run receives all incoming frames. The upstream asyncio task decodes and routes each frame to the LiveRequestQueue. Separate asyncio tasks handle video ready and ecology update events concurrently without blocking the main bidirectional stream.</div>
+            <div class="data-chips">
+              <span class="data-chip">upstream_task()</span>
+              <span class="data-chip">downstream_task()</span>
+              <span class="data-chip">LiveRequestQueue</span>
+              <span class="data-chip">Session affinity</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="4">
+          <div class="step-num"><div class="step-circle" style="background:var(--gemini-bg);color:var(--gemini-txt);border:2px solid var(--gemini-main)">4</div></div>
+          <div class="step-card" style="border-color:var(--gemini-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#10024;</span>
+              <span class="step-title">EcoScout Agent Processes via Gemini Live</span>
+              <span class="step-layer" style="background:var(--gemini-bg);color:var(--gemini-txt)">Gemini AI</span>
+            </div>
+            <div class="step-body">The ADK Runner feeds audio, video frames, and GPS into Gemini Live API's bidirectional streaming session. The EcoScout agent maintains a naturalist persona and proactively identifies species without the user having to ask. Native audio output is streamed back in real time.</div>
+            <div class="data-chips">
+              <span class="data-chip">gemini-live-2.5-flash-native-audio</span>
+              <span class="data-chip">Bidi WebSocket stream</span>
+              <span class="data-chip">Proactive reasoning</span>
+              <span class="data-chip">Native audio output</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="5">
+          <div class="step-num"><div class="step-circle" style="background:var(--server-bg);color:var(--server-txt);border:2px solid var(--server-main)">5</div></div>
+          <div class="step-card" style="border-color:var(--server-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#128295;</span>
+              <span class="step-title">Agent Calls Tools</span>
+              <span class="step-layer" style="background:var(--server-bg);color:var(--server-txt)">Cloud Run</span>
+            </div>
+            <div class="step-body">When the agent identifies a species or needs data, it invokes FunctionTools. identify_specimen() uses Gemini 3 Pro Image and Google Search. record_observation() saves to Firestore and queues an ecology event. get_area_species_checklist() queries iNaturalist. get_weather_context() queries Open-Meteo.</div>
+            <div class="data-chips">
+              <span class="data-chip">identify_specimen()</span>
+              <span class="data-chip">record_observation()</span>
+              <span class="data-chip">get_area_species_checklist()</span>
+              <span class="data-chip">calculate_biodiversity_metrics()</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="6">
+          <div class="step-num"><div class="step-circle" style="background:var(--device-bg);color:var(--device-txt);border:2px solid var(--device-main)">6</div></div>
+          <div class="step-card" style="border-color:var(--device-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#128202;</span>
+              <span class="step-title">Ecology Events Pushed to Client</span>
+              <span class="step-layer" style="background:var(--device-bg);color:var(--device-txt)">User Device</span>
+            </div>
+            <div class="step-body">The Ecology Notification Task continuously drains the _ecology_events async queue and sends ecology_update WebSocket messages. The client's ecology-viz.js updates the Live Survey Dashboard in real time, rendering D3.js food webs, accumulation curves, Shannon diversity index, and conservation alerts.</div>
+            <div class="data-chips">
+              <span class="data-chip">ecology_update WS event</span>
+              <span class="data-chip">D3.js food web</span>
+              <span class="data-chip">Shannon H' index</span>
+              <span class="data-chip">Accumulation curve</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="7">
+          <div class="step-num"><div class="step-circle" style="background:var(--gemini-bg);color:var(--gemini-txt);border:2px solid var(--gemini-main)">7</div></div>
+          <div class="step-card" style="border-color:var(--gemini-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#127909;</span>
+              <span class="step-title">Async Video Generation via Veo 3.1</span>
+              <span class="step-layer" style="background:var(--gemini-bg);color:var(--gemini-txt)">Gemini AI</span>
+            </div>
+            <div class="step-body">generate_nature_video() submits a contextual nature documentary prompt to Veo 3.1 as a long-running async operation. The Video Notification Task polls until completion, uploads the MP4 to Cloud Storage, generates a signed URL, and sends a video_ready WebSocket event back to the client.</div>
+            <div class="data-chips">
+              <span class="data-chip">veo-3.1-generate-preview</span>
+              <span class="data-chip">Long-running operation</span>
+              <span class="data-chip">video_ready WS event</span>
+              <span class="data-chip">Cloud Storage MP4</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step" data-step="8">
+          <div class="step-num"><div class="step-circle" style="background:var(--cloud-bg);color:var(--cloud-txt);border:2px solid var(--cloud-main)">8</div></div>
+          <div class="step-card" style="border-color:var(--cloud-bdr)">
+            <div class="step-head">
+              <span class="step-icon">&#127807;</span>
+              <span class="step-title">Client Receives All Outputs</span>
+              <span class="step-layer" style="background:var(--cloud-bg);color:var(--cloud-txt)">End State</span>
+            </div>
+            <div class="step-body">The full expedition experience is delivered: audio narration plays via AudioWorklet, field guide entries with AI-generated illustrations appear in the journal, generated videos play in the media gallery, and the live survey dashboard shows real-time biodiversity metrics - all through a single persistent WebSocket connection.</div>
+            <div class="data-chips">
+              <span class="data-chip">Audio playback (AudioWorklet)</span>
+              <span class="data-chip">Field guide illustrations</span>
+              <span class="data-chip">Video in gallery</span>
+              <span class="data-chip">Expedition summary</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /flow-timeline -->
+    </div>
+  </div><!-- /tab-flow -->
+
+  <!-- ==================================================
+       TAB 3: AGENT TOOLS
+       ================================================== -->
+  <div id="tab-tools" class="tab-content">
+    <div class="tools-hdr">
+      <div class="tools-hdr-title">10 Agent FunctionTools</div>
+      <div class="filters">
+        <button class="flt-btn active" data-filter="all">All (10)</button>
+        <button class="flt-btn" data-filter="obs">Observation (2)</button>
+        <button class="flt-btn" data-filter="bio">Biodiversity (3)</button>
+        <button class="flt-btn" data-filter="med">Media (3)</button>
+        <button class="flt-btn" data-filter="dat">Data (2)</button>
+      </div>
+    </div>
+    <div class="tools-grid">
+
+      <div class="tool-card cat-obs" data-cat="obs">
+        <div class="tc-head">
+          <div class="tc-icon">&#128300;</div>
+          <div><div class="tc-fn">identify_specimen()</div><div class="tc-cat">Observation</div></div>
+        </div>
+        <div class="tc-desc">Identifies a species from the current camera frame using Gemini 3 Pro Image for visual analysis, then verifies the identification against Google Search for accuracy and additional ecological context.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Gemini 3 Pro Image</span>
+          <span class="tc-api">Google Search</span>
+          <span class="tc-api">iNaturalist</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-obs" data-cat="obs">
+        <div class="tc-head">
+          <div class="tc-icon">&#128221;</div>
+          <div><div class="tc-fn">record_observation()</div><div class="tc-cat">Observation</div></div>
+        </div>
+        <div class="tc-desc">Saves a species observation to Cloud Firestore with GPS coordinates, timestamp, confidence, and ecological notes. Simultaneously queues an ecology event to update the live survey dashboard with new species data.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Cloud Firestore</span>
+          <span class="tc-api">_ecology_events queue</span>
+          <span class="tc-api">Geolocation</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-bio" data-cat="bio">
+        <div class="tc-head">
+          <div class="tc-icon">&#128200;</div>
+          <div><div class="tc-fn">calculate_biodiversity_metrics()</div><div class="tc-cat">Biodiversity</div></div>
+        </div>
+        <div class="tc-desc">Computes ecological diversity indices from recorded session observations. Calculates Shannon-Wiener Diversity Index (H'), Simpson's Diversity Index (1-D), species richness, and evenness scores.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Session observations</span>
+          <span class="tc-api">Shannon H'</span>
+          <span class="tc-api">Simpson 1-D</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-bio" data-cat="bio">
+        <div class="tc-head">
+          <div class="tc-icon">&#129419;</div>
+          <div><div class="tc-fn">get_area_species_checklist()</div><div class="tc-cat">Biodiversity</div></div>
+        </div>
+        <div class="tc-desc">Queries the iNaturalist API to retrieve the expected species checklist for the current geographic area. Returns community-verified observations with taxonomy, conservation status, and seasonal presence for gap analysis.</div>
+        <div class="tc-apis">
+          <span class="tc-api">iNaturalist REST API</span>
+          <span class="tc-api">GPS coordinates</span>
+          <span class="tc-api">Taxonomy data</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-bio" data-cat="bio">
+        <div class="tc-head">
+          <div class="tc-icon">&#127780;</div>
+          <div><div class="tc-fn">get_weather_context()</div><div class="tc-cat">Biodiversity</div></div>
+        </div>
+        <div class="tc-desc">Retrieves current meteorological data from Open-Meteo for the observation location. Provides temperature, humidity, wind speed, precipitation, and UV index to contextualise species activity patterns.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Open-Meteo API</span>
+          <span class="tc-api">GPS coordinates</span>
+          <span class="tc-api">Ecological context</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-med" data-cat="med">
+        <div class="tc-head">
+          <div class="tc-icon">&#128214;</div>
+          <div><div class="tc-fn">generate_field_entry()</div><div class="tc-cat">Media</div></div>
+        </div>
+        <div class="tc-desc">Generates a richly illustrated field guide entry using Gemini 3 Pro Image's interleaved text and image output mode. Produces scientific illustrations alongside ecological notes, habitat description, and conservation status.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Gemini 3 Pro Image</span>
+          <span class="tc-api">Interleaved output</span>
+          <span class="tc-api">Cloud Storage</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-med" data-cat="med">
+        <div class="tc-head">
+          <div class="tc-icon">&#127902;</div>
+          <div><div class="tc-fn">generate_nature_video()</div><div class="tc-cat">Media</div></div>
+        </div>
+        <div class="tc-desc">Submits an async video generation request to Veo 3.1 with a contextual nature documentary prompt based on observed species and habitat. The Video Notification Task polls the long-running operation and delivers an MP4 to Cloud Storage.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Veo 3.1</span>
+          <span class="tc-api">Cloud Storage</span>
+          <span class="tc-api">_video_ready_events</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-med" data-cat="med">
+        <div class="tc-head">
+          <div class="tc-icon">&#43;</div>
+          <div><div class="tc-fn">extend_video()</div><div class="tc-cat">Media</div></div>
+        </div>
+        <div class="tc-desc">Extends a previously generated nature video by an additional 7 seconds using Veo 3.1's video extension capability. Maintains visual and narrative continuity with the original clip for deeper exploration of a captured natural process.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Veo 3.1 extension</span>
+          <span class="tc-api">+7s continuation</span>
+          <span class="tc-api">Cloud Storage</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-dat" data-cat="dat">
+        <div class="tc-head">
+          <div class="tc-icon">&#128269;</div>
+          <div><div class="tc-fn">google_search()</div><div class="tc-cat">Data</div></div>
+        </div>
+        <div class="tc-desc">ADK built-in Google Search grounding tool. Used to verify species identifications, retrieve scientific literature, check conservation status, and ground all ecological claims with citations. Critical for preventing hallucination in species-sensitive contexts.</div>
+        <div class="tc-apis">
+          <span class="tc-api">ADK built-in</span>
+          <span class="tc-api">Google Search API</span>
+          <span class="tc-api">Citation grounding</span>
+        </div>
+      </div>
+
+      <div class="tool-card cat-dat" data-cat="dat">
+        <div class="tc-head">
+          <div class="tc-icon">&#128203;</div>
+          <div><div class="tc-fn">create_expedition_summary()</div><div class="tc-cat">Data</div></div>
+        </div>
+        <div class="tc-desc">Compiles a complete expedition journal from all recorded observations, biodiversity metrics, field guide entries, and generated media for the current session. Produces a structured report saved to Cloud Storage with a shareable signed URL.</div>
+        <div class="tc-apis">
+          <span class="tc-api">Cloud Firestore</span>
+          <span class="tc-api">Cloud Storage</span>
+          <span class="tc-api">Signed URL</span>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /tab-tools -->
+
+</div><!-- /page -->
+
+<script>
+/* ============================================================
+   COMPONENT DETAIL DATA
+   ============================================================ */
+const DETAILS = {
+  camera: {
+    icon:'&#128247;', title:'Camera', layer:'User Device',
+    layerColor:'#166534', layerBg:'#f0fdf4',
+    desc:'Captures JPEG frames at 1 fps using the browser getUserMedia API. Frames are resized to 640x480, base64 encoded, and sent to Cloud Run via WebSocket as JSON messages with type "image".',
+    specs:['JPEG format, 640x480 resolution','1 frame per second capture rate','Base64 encoded for JSON transport','getUserMedia API with video constraints','Sent as {type:"image", data:base64}'],
+    badge:'getUserMedia API', badgeBg:'#f0fdf4', badgeColor:'#166534'
+  },
+  microphone: {
+    icon:'&#127897;', title:'Microphone', layer:'User Device',
+    layerColor:'#166534', layerBg:'#f0fdf4',
+    desc:'Captures raw PCM audio at 16kHz mono using an AudioWorkletProcessor. Audio chunks of ~3200 bytes are sent as binary WebSocket frames every 100ms. Echo cancellation is enabled; noise suppression is deliberately disabled to preserve ecological soundscape detail.',
+    specs:['PCM 16kHz mono sampling rate','Echo cancellation: enabled','Noise suppression: disabled (preserve soundscape)','~3200 bytes per 100ms chunk','Binary WebSocket frame transport','Mute/unmute toggle without disconnecting'],
+    badge:'AudioWorklet', badgeBg:'#f0fdf4', badgeColor:'#166534'
+  },
+  gps: {
+    icon:'&#128205;', title:'GPS', layer:'User Device',
+    layerColor:'#166534', layerBg:'#f0fdf4',
+    desc:'Uses the browser Geolocation API to obtain real-time GPS coordinates. Coordinates are sent with each observation and used for iNaturalist area queries, Open-Meteo weather context, and geo-tagging all stored data in Firestore.',
+    specs:['Browser Geolocation API','Real-time coordinate tracking','Sent as {type:"gps", lat, lng}','Used for observation geo-tagging','Used for iNaturalist area queries','Used for Open-Meteo weather lookup'],
+    badge:'Geolocation API', badgeBg:'#f0fdf4', badgeColor:'#166534'
+  },
+  pwa: {
+    icon:'&#128187;', title:'Vanilla JS PWA', layer:'User Device',
+    layerColor:'#166534', layerBg:'#f0fdf4',
+    desc:'A Progressive Web App built with plain Vanilla JavaScript and CSS - zero framework dependencies. Includes Camera View, Media Gallery, Audio Journal, and Video Player. Installable on mobile devices as a native-like app.',
+    specs:['Zero JavaScript framework dependencies','Camera View with live preview','Media Gallery for field guide and videos','Audio Journal with transcription display','Installable PWA (manifest.json)','HTTPS required for PWA and getUserMedia'],
+    badge:'Vanilla JS + CSS', badgeBg:'#f0fdf4', badgeColor:'#166534'
+  },
+  dashboard: {
+    icon:'&#128202;', title:'Live Survey Dashboard', layer:'User Device',
+    layerColor:'#166534', layerBg:'#f0fdf4',
+    desc:'Real-time ecological visualization dashboard powered by D3.js. Updates live as ecology_update WebSocket events arrive. Renders food web graphs, accumulation curves, Shannon H\' diversity index, and conservation status alerts.',
+    specs:['D3.js force-directed food web graph','Species accumulation curve','Shannon-Wiener H\' diversity index','Simpson\'s 1-D index display','Conservation status alerts','Powered by ecology-viz.js'],
+    badge:'ecology-viz.js', badgeBg:'#f0fdf4', badgeColor:'#166534'
+  },
+  'ws-endpoint': {
+    icon:'&#128268;', title:'WebSocket Endpoint', layer:'Google Cloud Run',
+    layerColor:'#1e40af', layerBg:'#eff6ff',
+    desc:'FastAPI WebSocket endpoint at /ws/{user_id}/{session_id} with session affinity enabled on Cloud Run. Manages the persistent connection lifecycle and spawns upstream and downstream asyncio tasks when a client connects.',
+    specs:['Path: /ws/{user_id}/{session_id}','Session affinity via Cloud Run configuration','Spawns upstream and downstream asyncio tasks','Manages connection lifecycle and cleanup','FastAPI + Uvicorn async runtime'],
+    badge:'FastAPI + Uvicorn', badgeBg:'#eff6ff', badgeColor:'#1e40af'
+  },
+  'adk-runner': {
+    icon:'&#127939;', title:'ADK Runner', layer:'Google Cloud Run',
+    layerColor:'#1e40af', layerBg:'#eff6ff',
+    desc:'Google Agent Development Kit runner that orchestrates the EcoScout agent\'s interaction with Gemini Live API. Uses run_live() for bidirectional streaming. A LiveRequestQueue bridges the WebSocket upstream with the Gemini API stream.',
+    specs:['google-adk >= 1.18','run_live() bidirectional streaming','LiveRequestQueue for frame buffering','Handles audio, video, text, and tool call turns','Manages Gemini session state'],
+    badge:'google-adk >= 1.18', badgeBg:'#eff6ff', badgeColor:'#1e40af'
+  },
+  agent: {
+    icon:'&#129302;', title:'EcoScout Agent', layer:'Google Cloud Run',
+    layerColor:'#1e40af', layerBg:'#eff6ff',
+    desc:'The core LlmAgent with a naturalist persona system prompt. Proactively identifies species without being prompted, generates ecological hypotheses, and maintains affective engagement. Armed with 10 FunctionTools for ecological data and media generation.',
+    specs:['LlmAgent with naturalist persona','Proactive species identification','Affective engagement mode','10 FunctionTools registered','Backed by gemini-live-2.5-flash-native-audio'],
+    badge:'LlmAgent', badgeBg:'#eff6ff', badgeColor:'#1e40af'
+  },
+  'video-task': {
+    icon:'&#127909;', title:'Video Notification Task', layer:'Google Cloud Run',
+    layerColor:'#1e40af', layerBg:'#eff6ff',
+    desc:'An asyncio background task that polls the _video_ready_events async queue. When a video generation completes, it sends video_started and video_ready WebSocket events to the client with the Cloud Storage signed URL.',
+    specs:['asyncio.create_task() background task','Polls _video_ready_events queue','Sends video_started event on submission','Sends video_ready event on completion','Includes Cloud Storage signed URL in payload'],
+    badge:'asyncio task', badgeBg:'#eff6ff', badgeColor:'#1e40af'
+  },
+  'ecology-task': {
+    icon:'&#127807;', title:'Ecology Notification Task', layer:'Google Cloud Run',
+    layerColor:'#1e40af', layerBg:'#eff6ff',
+    desc:'An asyncio background task that continuously drains the _ecology_events async queue and broadcasts ecology_update WebSocket messages to the client. Enables real-time dashboard updates without blocking the main agent stream.',
+    specs:['asyncio.create_task() background task','Drains _ecology_events async queue','Broadcasts ecology_update WS messages','Carries species data, metrics, food web updates','Non-blocking - parallel to agent stream'],
+    badge:'asyncio task', badgeBg:'#eff6ff', badgeColor:'#1e40af'
+  },
+  'gemini-live': {
+    icon:'&#128266;', title:'Gemini Live API', layer:'Gemini AI APIs',
+    layerColor:'#5b21b6', layerBg:'#f5f3ff',
+    desc:'The primary model powering EcoScout\'s real-time interaction. Processes simultaneous audio, video frames, and GPS context via bidirectional WebSocket streaming. Delivers native audio responses and orchestrates tool calls without a text intermediary.',
+    specs:['Model: gemini-live-2.5-flash-native-audio','Bidirectional WebSocket streaming','Multimodal: audio + video + text + GPS','Native audio output (no TTS step)','Tool call orchestration','Sub-500ms response latency'],
+    badge:'gemini-live-2.5-flash-native-audio', badgeBg:'#f5f3ff', badgeColor:'#5b21b6'
+  },
+  'gemini-image': {
+    icon:'&#128444;', title:'Gemini 3 Pro Image', layer:'Gemini AI APIs',
+    layerColor:'#5b21b6', layerBg:'#f5f3ff',
+    desc:'Used for generating field guide illustrations via the interleaved text and image output mode. Called by generate_field_entry() and identify_specimen() to produce scientific-quality illustrations of observed species alongside descriptive text.',
+    specs:['Model: gemini-3-pro-image-preview','Interleaved text and image output mode','Scientific illustration generation','Species identification from camera frames','PNG images stored in Cloud Storage'],
+    badge:'gemini-3-pro-image-preview', badgeBg:'#f5f3ff', badgeColor:'#5b21b6'
+  },
+  veo: {
+    icon:'&#127909;', title:'Veo 3.1', layer:'Gemini AI APIs',
+    layerColor:'#5b21b6', layerBg:'#f5f3ff',
+    desc:'Google\'s video generation model, called asynchronously by generate_nature_video() and extend_video(). Creates nature documentary-style videos of observed ecological processes. Supports 7-second extensions for longer narratives.',
+    specs:['Model: veo-3.1-generate-preview','Async long-running operation pattern','Nature documentary video generation','Video extension support (+7 seconds)','MP4 output stored in Cloud Storage','Contextual prompts from session observations'],
+    badge:'veo-3.1-generate-preview', badgeBg:'#f5f3ff', badgeColor:'#5b21b6'
+  },
+  'google-search': {
+    icon:'&#128269;', title:'Google Search', layer:'Gemini AI APIs',
+    layerColor:'#5b21b6', layerBg:'#f5f3ff',
+    desc:'ADK built-in grounding tool used to verify species identifications, retrieve scientific information, and cite ecological claims. Critical for preventing hallucination in species-sensitive contexts where incorrect identification could mislead users.',
+    specs:['ADK built-in grounding tool','Automated citation attachment','Species verification and cross-referencing','Scientific literature retrieval','Conservation status confirmation'],
+    badge:'ADK built-in tool', badgeBg:'#f5f3ff', badgeColor:'#5b21b6'
+  },
+  firestore: {
+    icon:'&#128451;', title:'Cloud Firestore', layer:'Google Cloud Services',
+    layerColor:'#92400e', layerBg:'#fffbeb',
+    desc:'NoSQL document database storing all session data, species observations, video metadata, and expedition summaries. Used via the async Firestore client to avoid blocking the asyncio event loop.',
+    specs:['Session and connection state','Species observations with GPS and timestamp','Video generation status and metadata','GPS tracks for the expedition','Expedition summaries and reports','AsyncClient for non-blocking I/O'],
+    badge:'AsyncClient', badgeBg:'#fffbeb', badgeColor:'#92400e'
+  },
+  'cloud-storage': {
+    icon:'&#128230;', title:'Cloud Storage', layer:'Google Cloud Services',
+    layerColor:'#92400e', layerBg:'#fffbeb',
+    desc:'Google Cloud Storage bucket holding all binary media: AI-generated field guide illustrations (PNG), Veo-generated nature videos (MP4), and expedition journal exports. Client access uses time-limited signed URLs.',
+    specs:['AI field guide illustrations (PNG)','Veo-generated nature videos (MP4)','Expedition journal exports','Time-limited signed URL access','CORS configured for browser access'],
+    badge:'Signed URLs', badgeBg:'#fffbeb', badgeColor:'#92400e'
+  },
+  inaturalist: {
+    icon:'&#129419;', title:'iNaturalist', layer:'External Data Sources',
+    layerColor:'#92400e', layerBg:'#fffbeb',
+    desc:'Community-powered nature observation platform with 100 million+ verified observations. Used by get_area_species_checklist() to retrieve expected species for a geographic area, including taxonomy, conservation status, and seasonal presence.',
+    specs:['100M+ verified community observations','Area-based species checklists','Full taxonomy (kingdom to subspecies)','IUCN conservation status','Seasonal activity data','Free REST API (no key required for basic use)'],
+    badge:'REST API', badgeBg:'#fffbeb', badgeColor:'#92400e'
+  },
+  'open-meteo': {
+    icon:'&#127780;', title:'Open-Meteo', layer:'External Data Sources',
+    layerColor:'#92400e', layerBg:'#fffbeb',
+    desc:'Open-source weather API providing real-time meteorological data. Used by get_weather_context() to provide ecological context for species activity - temperature, humidity, wind, and UV index all influence animal and plant behaviour.',
+    specs:['Temperature, humidity, wind speed','UV index and precipitation data','Forecast and historical data','Ecological context for species activity','Free and open source (no API key required)','Coordinate-based lookup'],
+    badge:'REST API', badgeBg:'#fffbeb', badgeColor:'#92400e'
+  }
+};
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(t).classList.add('active');
+  });
+});
+
+/* ============================================================
+   COMPONENT DETAIL PANEL
+   ============================================================ */
+function openDetail(key) {
+  const d = DETAILS[key];
+  if (!d) return;
+  document.getElementById('d-icon').innerHTML  = d.icon;
+  document.getElementById('d-icon').style.background = d.layerBg;
+  document.getElementById('d-title').textContent = d.title;
+  document.getElementById('d-layer').textContent = d.layer;
+  document.getElementById('d-layer').style.color  = d.layerColor;
+  document.getElementById('d-desc').textContent   = d.desc;
+  document.getElementById('d-specs').innerHTML    = d.specs.map(s => `<li>${s}</li>`).join('');
+  document.getElementById('d-badge').innerHTML    =
+    `<div class="detail-badge" style="background:${d.badgeBg};color:${d.badgeColor};border:1px solid ${d.badgeColor}40">${d.badge}</div>`;
+  document.getElementById('detail-panel').classList.add('visible');
+  document.querySelectorAll('.comp-chip').forEach(c => c.classList.remove('active'));
+  const chip = document.querySelector(`[data-comp="${key}"]`);
+  if (chip) chip.classList.add('active');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('visible');
+  document.querySelectorAll('.comp-chip').forEach(c => c.classList.remove('active'));
+}
+
+document.querySelectorAll('.comp-chip').forEach(chip => {
+  chip.addEventListener('click', () => openDetail(chip.dataset.comp));
+});
+
+/* ============================================================
+   LAYER FOCUS / DIM
+   ============================================================ */
+const layerCards = document.querySelectorAll('.layer-card');
+layerCards.forEach(card => {
+  card.addEventListener('mouseenter', () => {
+    layerCards.forEach(c => c === card ? c.classList.add('focused') : c.classList.add('dimmed'));
+  });
+  card.addEventListener('mouseleave', () => {
+    layerCards.forEach(c => c.classList.remove('focused', 'dimmed'));
+  });
+});
+
+/* ============================================================
+   DATA FLOW WALKTHROUGH
+   ============================================================ */
+let currentStep = 1;
+const TOTAL = 8;
+
+function renderFlow() {
+  document.querySelectorAll('.flow-step').forEach(s => {
+    const n = parseInt(s.dataset.step);
+    s.classList.remove('active', 'done');
+    if (n === currentStep) s.classList.add('active');
+    else if (n < currentStep) s.classList.add('done');
+  });
+  document.getElementById('step-count').textContent = `Step ${currentStep} of ${TOTAL}`;
+  document.getElementById('btn-prev').disabled = currentStep === 1;
+  document.getElementById('btn-next').disabled = currentStep === TOTAL;
+  const active = document.querySelector('.flow-step.active');
+  if (active) active.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function nextStep()  { if (currentStep < TOTAL) { currentStep++; renderFlow(); } }
+function prevStep()  { if (currentStep > 1)     { currentStep--; renderFlow(); } }
+function resetFlow() { currentStep = 1; renderFlow(); }
+renderFlow();
+
+/* ============================================================
+   AGENT TOOLS FILTER
+   ============================================================ */
+document.querySelectorAll('.flt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter;
+    document.querySelectorAll('.flt-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tool-card').forEach(card => {
+      card.classList.toggle('hidden', f !== 'all' && card.dataset.cat !== f);
+    });
+  });
+});
+</script>
+</body>
+</html>

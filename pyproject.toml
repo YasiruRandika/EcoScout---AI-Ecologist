@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "google-adk>=1.18.0",
+    "google-adk>=1.27.1",
     "google-genai>=1.0.0",
     "google-cloud-firestore>=2.19.0",
     "google-cloud-storage>=2.18.0",

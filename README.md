@@ -4,6 +4,17 @@
 
 EcoScout thinks like an ecologist: it listens to ambient sounds, cross-references iNaturalist's 100M+ observations, computes biodiversity metrics, and builds living ecological visualizations. Through bidirectional audio and video streaming, it identifies species from background audio, generates scientific hypotheses, performs gap analysis against expected species lists, and produces professional ecological survey reports - all through natural voice conversation.
 
+<p align="center">
+  <img src="Images/img1.jpeg" width="250" alt="Live species identification - Galah detected via camera">
+  &nbsp;&nbsp;
+  <img src="Images/img2.jpeg" width="250" alt="Live Survey Dashboard with biodiversity metrics and ecological network">
+  &nbsp;&nbsp;
+  <img src="Images/img3.jpeg" width="250" alt="Veo 3.1 nature video generated from conversation context">
+</p>
+<p align="center">
+  <em>Live species identification &nbsp;|&nbsp; Real-time survey dashboard &nbsp;|&nbsp; AI-generated nature video</em>
+</p>
+
 ## Key Features
 
 - **Ambient Soundscape Analysis** - Identifies species from background audio (bird calls, frog sounds)

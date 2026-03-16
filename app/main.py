@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import warnings
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, quote
 
@@ -27,7 +28,8 @@ from google.genai import types
 
 from ecoscout_agent.agent import agent
 from ecoscout_agent.tools import (
-    _video_ready_events, _video_started_events, _ecology_events, clear_session_events,
+    _video_ready_events, _video_started_events, _ecology_events,
+    _field_entry_events, clear_session_events,
 )
 
 logging.basicConfig(
@@ -270,13 +272,14 @@ async def geocode_endpoint(
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(
                 "https://nominatim.openstreetmap.org/reverse",
-                params={"lat": lat, "lon": lon, "format": "json", "zoom": 14},
+                params={"lat": lat, "lon": lon, "format": "json", "zoom": 18},
                 headers={"User-Agent": "EcoScout/1.0"},
             )
             data = resp.json()
             addr = data.get("address", {})
             parts = [
-                addr.get("park") or addr.get("nature_reserve") or addr.get("leisure") or "",
+                addr.get("tourism") or addr.get("garden") or addr.get("attraction")
+                or addr.get("park") or addr.get("nature_reserve") or addr.get("leisure") or "",
                 addr.get("city") or addr.get("town") or addr.get("village") or addr.get("suburb") or "",
                 addr.get("state") or addr.get("county") or "",
             ]
@@ -397,6 +400,10 @@ async def websocket_endpoint(
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             session_resumption=types.SessionResumptionConfig(),
+            context_window_compression=types.ContextWindowCompressionConfig(
+                trigger_tokens=100000,
+                sliding_window=types.SlidingWindow(target_tokens=80000),
+            ),
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
@@ -410,6 +417,10 @@ async def websocket_endpoint(
             streaming_mode=StreamingMode.BIDI,
             response_modalities=["TEXT"],
             session_resumption=types.SessionResumptionConfig(),
+            context_window_compression=types.ContextWindowCompressionConfig(
+                trigger_tokens=100000,
+                sliding_window=types.SlidingWindow(target_tokens=80000),
+            ),
         )
 
     session = await session_service.get_session(
@@ -423,9 +434,12 @@ async def websocket_endpoint(
     live_request_queue = LiveRequestQueue()
 
     _gps_state = {"lat": 0.0, "lon": 0.0, "last_location": ""}
+    _location_sent = False
 
     async def upstream_task() -> None:
         """Receive messages from WebSocket client and route to LiveRequestQueue."""
+        nonlocal _location_sent
+
         while True:
             message = await websocket.receive()
 
@@ -464,20 +478,27 @@ async def websocket_endpoint(
                     _gps_state["lat"] = json_msg.get("lat", 0.0)
                     _gps_state["lon"] = json_msg.get("lon", 0.0)
                     location_name = json_msg.get("locationName", "")
+                    _gps_state["last_location"] = location_name
 
-                    if location_name and location_name != _gps_state["last_location"]:
-                        _gps_state["last_location"] = location_name
+                    if location_name and not _location_sent:
+                        _location_sent = True
+                        utc_offset_hours = round(_gps_state["lon"] / 15)
+                        local_tz = timezone(timedelta(hours=utc_offset_hours))
+                        local_time = datetime.now(local_tz)
+                        time_str = local_time.strftime("%I:%M %p, %A %B %d, %Y")
+
                         context = types.Content(
                             parts=[types.Part(text=(
-                                f"[Location Update] The user is currently at: {location_name} "
+                                f"System update — The user is currently at: {location_name} "
                                 f"(GPS: {_gps_state['lat']:.6f}, {_gps_state['lon']:.6f}). "
-                                f"Use this location to contextualize species identification, "
-                                f"habitat descriptions, and ecological observations for this "
-                                f"specific region."
+                                f"Local time is {time_str}. "
+                                f"Use this location and time to contextualize species "
+                                f"identification, habitat descriptions, and ecological "
+                                f"observations for this specific region."
                             ))]
                         )
                         live_request_queue.send_content(context)
-                        logger.info(f"Location context sent to agent: {location_name}")
+                        logger.info(f"Location context sent to agent (once): {location_name}")
 
     async def downstream_task() -> None:
         """Forward ADK events to the WebSocket client."""
@@ -498,44 +519,72 @@ async def websocket_endpoint(
         notified_started = set()
         while True:
             await asyncio.sleep(2)
-            for vid in list(_video_started_events.keys()):
-                if vid not in notified_started:
-                    notified_started.add(vid)
-                    await websocket.send_text(json.dumps({
-                        "type": "video_started",
-                        "video_id": vid,
-                    }))
-                    logger.info(f"Video started notification sent: {vid}")
-            for vid, info in list(_video_ready_events.items()):
-                if vid in notified:
-                    continue
-                status = info.get("status")
-                if status == "ready" and info.get("url"):
-                    notified.add(vid)
-                    await websocket.send_text(json.dumps({
-                        "type": "video_ready",
-                        "video_id": vid,
-                        "url": info["url"],
-                    }))
-                    logger.info(f"Video notification sent: {vid}")
-                elif status == "failed":
-                    notified.add(vid)
-                    await websocket.send_text(json.dumps({
-                        "type": "video_failed",
-                        "video_id": vid,
-                        "error": info.get("error", "Unknown error"),
-                    }))
-                    logger.warning(f"Video failure notification sent: {vid}")
+            try:
+                for vid in list(_video_started_events.keys()):
+                    if vid not in notified_started:
+                        notified_started.add(vid)
+                        await websocket.send_text(json.dumps({
+                            "type": "video_started",
+                            "video_id": vid,
+                        }))
+                        logger.info(f"Video started notification sent: {vid}")
+                for vid, info in list(_video_ready_events.items()):
+                    if vid in notified:
+                        continue
+                    status = info.get("status")
+                    if status == "ready" and info.get("url"):
+                        notified.add(vid)
+                        await websocket.send_text(json.dumps({
+                            "type": "video_ready",
+                            "video_id": vid,
+                            "url": info["url"],
+                        }))
+                        logger.info(f"Video notification sent: {vid}")
+                    elif status == "failed":
+                        notified.add(vid)
+                        await websocket.send_text(json.dumps({
+                            "type": "video_failed",
+                            "video_id": vid,
+                            "error": info.get("error", "Unknown error"),
+                        }))
+                        logger.warning(f"Video failure notification sent: {vid}")
+            except Exception as e:
+                logger.warning(f"Video notification send failed: {e}")
+                return
 
     async def ecology_notification_task() -> None:
         """Poll for ecology events from tools and push to frontend dashboard."""
+        logger.info("ecology_notification_task STARTED")
         while True:
             await asyncio.sleep(1)
             while _ecology_events:
-                event = _ecology_events.pop(0)
-                event["type"] = "ecology_update"
-                await websocket.send_text(json.dumps(event))
-                logger.info(f"Ecology update sent: {list(event.keys())}")
+                event = _ecology_events[0]
+                payload = {**event, "type": "ecology_update"}
+                try:
+                    await websocket.send_text(json.dumps(payload))
+                    _ecology_events.pop(0)
+                    logger.info(f"Ecology update SENT: {payload.get('species', {}).get('name', '?')}")
+                except Exception as e:
+                    logger.warning(f"Ecology send failed, events preserved: {e}")
+                    return
+
+    async def field_entry_notification_task() -> None:
+        """Poll for generated field guide entries and push to frontend."""
+        notified: set[str] = set()
+        while True:
+            await asyncio.sleep(2)
+            try:
+                for eid, info in list(_field_entry_events.items()):
+                    if eid not in notified and info.get("image_url"):
+                        notified.add(eid)
+                        await websocket.send_text(json.dumps({
+                            "type": "field_entry_ready",
+                            **info,
+                        }))
+                        logger.info(f"Field entry notification sent: {eid}")
+            except Exception as e:
+                logger.warning(f"Field entry notification send failed: {e}")
+                return
 
     try:
         await asyncio.gather(
@@ -543,6 +592,7 @@ async def websocket_endpoint(
             downstream_task(),
             video_notification_task(),
             ecology_notification_task(),
+            field_entry_notification_task(),
         )
     except WebSocketDisconnect:
         logger.debug("Client disconnected")

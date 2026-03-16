@@ -224,84 +224,53 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Voice FAB ── */
+/* ── Mic button in input row ── */
 
-.voice-fab {
-  position: fixed;
-  z-index: 25;
-  bottom: calc(var(--sheet-height) + 16px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 96px;
-  height: 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.voice-fab canvas {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-}
-
-.voice-fab button {
-  position: relative;
-  z-index: 2;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: var(--glass);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
+.input-mic-btn {
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-  box-shadow:
-    0 2px 16px rgba(0,0,0,0.3),
-    inset 0 0 0 1px rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.voice-fab button:active {
-  transform: scale(0.93);
-}
-
-.voice-fab.active button {
+.input-mic-btn.active {
   background: var(--accent-dim);
   color: var(--accent);
-  box-shadow:
-    0 0 24px var(--accent-glow),
-    0 2px 16px rgba(0,0,0,0.3),
-    inset 0 0 0 1px rgba(74, 222, 128, 0.2);
+  border-color: rgba(74, 222, 128, 0.25);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: micPulse 2.5s ease-in-out infinite;
 }
 
-.voice-fab.disabled button {
+.input-mic-btn.disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.voice-fab.muted button {
+.input-mic-btn.muted {
   background: rgba(251, 191, 36, 0.15);
   color: #fbbf24;
-  box-shadow: 0 0 16px rgba(251, 191, 36, 0.2);
+  border-color: rgba(251, 191, 36, 0.25);
 }
 
-.voice-fab.error button {
+.input-mic-btn.error {
   background: rgba(239, 68, 68, 0.15);
   color: var(--danger);
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.25);
   animation: micError 0.5s ease;
+}
+
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
+  50% { box-shadow: 0 0 20px var(--accent-glow), 0 0 4px var(--accent-dim); }
 }
 
 @keyframes micError {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-3px); }
   40%, 80% { transform: translateX(3px); }
+}
+
+.input-mic-viz {
+  display: none;
 }
 
 /* ── Bottom Conversation Sheet ── */
@@ -697,10 +666,6 @@ body {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
-  .voice-fab {
-    left: 50%;
-    transform: translateX(-50%);
-  }
 }
 
 /* ── Landscape mobile: reduce sheet ── */
@@ -710,16 +675,6 @@ body {
     --sheet-height: 50%;
   }
 
-  .voice-fab {
-    bottom: calc(var(--sheet-height) + 8px);
-    width: 72px;
-    height: 72px;
-  }
-
-  .voice-fab button {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 /* ── Connection banner (when WebSocket fails) ── */
